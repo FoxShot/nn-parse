@@ -17,6 +17,8 @@ import configparser
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
+#import subprocess
+import youtube_dl
 
 
 class VLCWidget(Gtk.DrawingArea):
@@ -63,14 +65,44 @@ class VLCWindow(Gtk.Window):
 	def close(self, widget):
 		self.draw_area.seis()
 
-	def display(self, video):
-		print(video)
+	def display(self, video_url):
 #		tree = html.parse(video)
-		result = requests.get(video)
+		result = requests.get(video_url)
 		tree = html.fromstring(result.content)
-		video = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]/script/text()')
-		url = re.search('https:.+[.]flv', video[0]) #HUOM! jos logattuna niin https, muuten http
-		self.draw_area.player.set_mrl(url.group(0))
+		embedded = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]')[0]
+		youtube = embedded.xpath('iframe/@src')
+		flv = embedded.xpath('script/text()')
+		if len(flv) != 0:
+			url = re.search('https:.+[.]flv', flv[0]).group(0) #HUOM! jos logattuna niin https, muuten http
+		else:
+			ydl = youtube_dl.YoutubeDL({'outtmpl': '%(id)s%(ext)s'})
+
+			with ydl:
+				result = ydl.extract_info(
+					'http:' + youtube[0],
+					download=False # We just want to extract the info
+				)
+
+			if 'entries' in result:
+				# Can be a playlist or a list of videos
+				formats = result['entries'][0]['formats']
+			else:
+				# Just a video
+				formats = result['formats']
+#			p = subprocess.Popen('ls', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+#			url = p.stdout.readline()
+#			url = iter(p.stdout.readline, '')
+#			youtube = os.popen('youtube-dl -g http:'+youtube[0]).read()
+#			url = youtube
+			
+			video = formats[0]['url']
+			for laatu in formats:
+				print(laatu['format'])
+				if laatu['format_id'] == '43':
+					print(laatu['url'])
+					video = laatu['url']
+			url = video
+		self.draw_area.player.set_mrl(url)
 		self.draw_area.player.play()
 	
 #def display(video):
@@ -224,4 +256,3 @@ win = MyWindow()
 win.connect("delete-event", Gtk.main_quit)
 win.show_all()
 Gtk.main()
-instance.release()
