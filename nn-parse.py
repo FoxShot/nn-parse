@@ -78,7 +78,11 @@ class VLCWindow(Gtk.Window):
 		
 class YTelement(youtube_dl.YoutubeDL):
 	def __init__(self, url):
-		youtube_dl.YoutubeDL.__init__(self, {'outtmpl': '%(id)s%(ext)s'})
+		options = {
+			'format': '-f bestvideo[height<=480]+bestaudio/best[height<=480]',
+			'simulate': 'true'
+			}
+		youtube_dl.YoutubeDL.__init__(self, options)
 		with self:
 			result = self.extract_info(
 				'http:' + url,
@@ -91,9 +95,7 @@ class YTelement(youtube_dl.YoutubeDL):
 			# Just a video
 			formats = result['formats']
 		
-		for laatu in formats:
-			if laatu['format_id'] == '43':
-				self.video = laatu['url']
+		self.video = result['url']
 
 class Thumbnail(Gtk.Image):
 	def __init__(self, url):
