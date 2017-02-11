@@ -17,6 +17,8 @@ import configparser
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
+#import subprocess
+import youtube_dl
 
 
 class VLCWidget(Gtk.DrawingArea):
@@ -51,40 +53,49 @@ class VLCWindow(Gtk.Window):
 		self.connect("destroy", self.close)
 		
 	def _realized(self, widget):
-#		self.vlcInstance = vlc.Instance("--no-xlib")
-#		self.player = instance.media_player_new()
 		win_id = widget.get_window().get_xid()
 		self.draw_area.player.set_xwindow(win_id)
-#		self.player.set_mrl("http://www.youtube.com/embed/amNo0Sng-Zk?autoplay=1")
-#		self.player.play()
-#		self.playback_button.set_image(self.pause_image)
-#		self.is_player_active = True
+
 
 	def close(self, widget):
 		self.draw_area.seis()
 
-	def display(self, video):
-		print(video)
-#		tree = html.parse(video)
-		result = requests.get(video)
+	def display(self, video_url):
+		result = requests.get(video_url)
 		tree = html.fromstring(result.content)
-		video = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]/script/text()')
-		url = re.search('https:.+[.]flv', video[0]) #HUOM! jos logattuna niin https, muuten http
-		self.draw_area.player.set_mrl(url.group(0))
+		embedded = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]')[0]
+		youtube = embedded.xpath('iframe/@src')
+		flv = embedded.xpath('script/text()')
+
+		if len(flv) != 0:
+			url = re.search('https:.+[.]flv', flv[0]).group(0) #HUOM! jos logattuna niin https, muuten http
+		else:
+			ydl = YTelement(youtube[0])
+			url = ydl.video
+
+		self.draw_area.player.set_mrl(url)
 		self.draw_area.player.play()
-	
-#def display(video):
-#	page = requests.get(video)
-#	tree = html.fromstring(page.content)
-#	tree = html.parse(video)
-#	video = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]/iframe/@src')
-#	url = video[0]
-#	with re.search('https:.+[.]flv', video[0]) as url:
-#	url = re.search('https:.+[.]flv', video[0]).group(0) #HUOM! jos logattuna niin https, muuten http
-#		if url == None:
-#			url = video
-#	print("http:" + url)
-#	return "http:" + url
+		
+class YTelement(youtube_dl.YoutubeDL):
+	def __init__(self, url):
+		options = {
+			'format': '-f bestvideo[height<=480]+bestaudio/best[height<=480]',
+			'simulate': 'true'
+			}
+		youtube_dl.YoutubeDL.__init__(self, options)
+		with self:
+			result = self.extract_info(
+				'http:' + url,
+				download=False # We just want to extract the info
+			)
+		if 'entries' in result:
+			# Can be a playlist or a list of videos
+			formats = result['entries'][0]['formats']
+		else:
+			# Just a video
+			formats = result['formats']
+		
+		self.video = result['url']
 
 class Thumbnail(Gtk.Image):
 	def __init__(self, url):
@@ -165,11 +176,6 @@ class nappi(Gtk.Button):
 		self.connect("clicked", self.on_button_clicked)
 
 	def on_button_clicked(self, widget):
-#		video = instance.media_new(display(widget.Mnemonic))
-#		video.get_mrl()
-#		soitin = VLCWidget()
-#		soitin.player.set_media(video)
-#		soitin.player.play()
 		window = VLCWindow()
 		window.show_all()
 		window.display(widget.Mnemonic)
@@ -187,7 +193,7 @@ class Ristikko(Gtk.Grid):
 
 class MyWindow(Gtk.Window):
 	def __init__(self):
-		Gtk.Window.__init__(self, title="Hello World")
+		Gtk.Window.__init__(self, title="nn-parse")
 
 		self.jako = Gtk.VBox()
 		self.add(self.jako)
@@ -224,4 +230,3 @@ win = MyWindow()
 win.connect("delete-event", Gtk.main_quit)
 win.show_all()
 Gtk.main()
-instance.release()
