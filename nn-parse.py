@@ -205,10 +205,16 @@ class MyWindow(Gtk.Window):
 		
 		b = Gtk.ToolButton(Gtk.STOCK_GO_BACK)
 		b.Mnemonic = -1
-		toolbar.insert(b, -1)
 		b.connect("clicked", self.on_button_clicked)
+		toolbar.insert(b, -1)
+		
 		b = Gtk.ToolButton(Gtk.STOCK_GO_FORWARD)
 		b.Mnemonic = 1
+		b.connect("clicked", self.on_button_clicked)
+		toolbar.insert(b, -1)
+		
+		b = Gtk.ToolButton(Gtk.STOCK_REFRESH)
+		b.Mnemonic = 0
 		b.connect("clicked", self.on_button_clicked)
 		toolbar.insert(b, -1)
 
