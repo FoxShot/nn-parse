@@ -41,7 +41,7 @@ class VLCWidget(Gtk.DrawingArea):
 		self.instance.release()
 	
 class VLCWindow(Gtk.Window):
-	def __init__(self):
+	def __init__(self, video_url):
 		Gtk.Window.__init__(self, title="VLC")
 		self.draw_area = VLCWidget()
 		self.draw_area.connect("realize",self._realized)
@@ -50,12 +50,30 @@ class VLCWindow(Gtk.Window):
 		self.add(self.vbox)
 		self.vbox.pack_start(self.draw_area, True, True, 0)
 
+#		result = requests.get(video_url)
+		mie = login()
+		result = mie.hae(video_url)
+		tree = html.fromstring(result.content)
+		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+		rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
+		if len(rating)!=0:
+			rating = rating[0]
+		else:
+			rating = "<et ole kirjautunut>"
+		nimike = linkdata.xpath('h1/span[@id="linktitle"]/text()')[0]
+		katsottu = linkdata.xpath('div[@id="linktoolstable"]//p/b/text()')[0]
+
+		label = Gtk.Label(nimike + " " + rating)
+		self.vbox.add(label)
+
+		label = Gtk.Label("Katsottu: " + katsottu + " kertaa")
+		self.vbox.add(label)
+
 		self.connect("destroy", self.close)
 		
 	def _realized(self, widget):
 		win_id = widget.get_window().get_xid()
 		self.draw_area.player.set_xwindow(win_id)
-
 
 	def close(self, widget):
 		self.draw_area.seis()
@@ -75,6 +93,7 @@ class VLCWindow(Gtk.Window):
 
 		self.draw_area.player.set_mrl(url)
 		self.draw_area.player.play()
+
 		
 class YTelement(youtube_dl.YoutubeDL):
 	def __init__(self, url):
@@ -176,7 +195,7 @@ class nappi(Gtk.Button):
 		self.connect("clicked", self.on_button_clicked)
 
 	def on_button_clicked(self, widget):
-		window = VLCWindow()
+		window = VLCWindow(widget.Mnemonic)
 		window.show_all()
 		window.display(widget.Mnemonic)
 
