@@ -39,6 +39,36 @@ class VLCWidget(Gtk.DrawingArea):
 		getattr(self.player, "stop")()
 		self.player.stop()
 		self.instance.release()
+		
+class DataElement:
+	def __init__(self, video_url):
+		self.mie = login()
+		result = self.mie.hae(video_url)
+		tree = html.fromstring(result.content)
+		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
+		if len(self.rating)!=0:
+			self.rating = self.rating[0]
+		else:
+			self.rating = "<et ole kirjautunut>"
+		self.nimike = linkdata.xpath('h1/span[@id="linktitle"]/text()')
+		if len(self.nimike)!=0:
+			self.nimike = self.nimike[0]
+		else:
+			self.nimike = "<ei nimikettä>"
+		self.katsottu = linkdata.xpath('div[@id="linktoolstable"]//p/b/text()')[0]
+		
+		self.link_id = tree.xpath('//input[@name="link_id"]/@value')
+			
+	def rate_video(self, rating):
+		payload={
+			'service_id':'1',
+			'target_id':self.link_id,
+			'points':rating
+			}
+			
+		self.mie.post("https://naurunappula.com/rate.php", payload)
+		
 	
 class VLCWindow(Gtk.Window):
 	def __init__(self, video_url):
@@ -51,22 +81,36 @@ class VLCWindow(Gtk.Window):
 		self.vbox.pack_start(self.draw_area, True, True, 0)
 
 #		result = requests.get(video_url)
-		mie = login()
-		result = mie.hae(video_url)
-		tree = html.fromstring(result.content)
-		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
-		rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
-		if len(rating)!=0:
-			rating = rating[0]
-		else:
-			rating = "<et ole kirjautunut>"
-		nimike = linkdata.xpath('h1/span[@id="linktitle"]/text()')[0]
-		katsottu = linkdata.xpath('div[@id="linktoolstable"]//p/b/text()')[0]
+		self.data = DataElement(video_url)
 
-		label = Gtk.Label(nimike + " " + rating)
+		rate_box = Gtk.Box()
+		rate_box.set_homogeneous(True)
+		rate_box.add(Gtk.Label(self.data.rating))
+		
+		painike = Gtk.Button()
+		painike.Mnemonic = '2'
+		painike.add(Gtk.Label('+2'))
+		painike.connect('clicked', self.on_button_clicked)
+		rate_box.add(painike)
+		
+		painike = Gtk.Button()
+		painike.Mnemonic = '1'
+		painike.add(Gtk.Label('+1'))
+		painike.connect('clicked', self.on_button_clicked)
+		rate_box.add(painike)
+		
+		painike = Gtk.Button()
+		painike.Mnemonic = '-1'
+		painike.add(Gtk.Label('-1'))
+		painike.connect('clicked', self.on_button_clicked)
+		rate_box.add(painike)
+
+		self.vbox.add(rate_box)
+
+		label = Gtk.Label(self.data.nimike)
 		self.vbox.add(label)
 
-		label = Gtk.Label("Katsottu: " + katsottu + " kertaa")
+		label = Gtk.Label("Katsottu: " + self.data.katsottu + " kertaa")
 		self.vbox.add(label)
 
 		self.connect("destroy", self.close)
@@ -93,7 +137,9 @@ class VLCWindow(Gtk.Window):
 
 		self.draw_area.player.set_mrl(url)
 		self.draw_area.player.play()
-
+	
+	def on_button_clicked(self, widget):
+		self.data.rate_video(widget.Mnemonic)
 		
 class YTelement(youtube_dl.YoutubeDL):
 	def __init__(self, url):
