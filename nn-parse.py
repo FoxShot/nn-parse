@@ -8,7 +8,7 @@ import urllib
 import vlc
 from os.path import expanduser
 home = expanduser("~")	#multi os support
-from gi.repository import Gtk
+from gi.repository import Gtk,Gdk,GObject
 from gi.repository.GdkPixbuf import Pixbuf
 import os
 import configparser
@@ -16,8 +16,6 @@ import configparser
 #from mpv import MPV
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
-#import subprocess
 import youtube_dl
 
 class login(requests.Session):
@@ -95,6 +93,34 @@ class DataBox(Gtk.VBox):
 		self.data.hae_rating()
 		self.rating.set_label(self.data.rating)
 		
+class Seekbar(Gtk.HScale):
+	def __init__(self, VLCWidget):
+		Gtk.HScale.__init__(self)
+		self.player = VLCWidget
+		self.connect("change-value", self.set_time)
+		self.set_range(0,1)
+		self.set_digits(5)
+		self.set_draw_value(False)
+		GObject.timeout_add(200, self.timeout)
+		self.connect("destroy", self.close)
+		self.timer_on = True
+		
+	def close():
+		self.timer_on = False
+
+	def timeout(self):
+		self.set_value(self.player.get_position())
+		return self.timer_on
+		
+	def set_length(self):
+		print(self.player.get_length())
+		self.set_range(0,1)
+		
+	def set_time(self, widget, scroll, value):
+		if scroll == Gtk.ScrollType.JUMP:
+			self.player.set_position(value)
+
+		
 class VLCWindow(Gtk.Window):
 	def __init__(self, olio):
 		Gtk.Window.__init__(self, title="VLC")
@@ -122,10 +148,14 @@ class VLCWindow(Gtk.Window):
 		self.data = olio
 
 		self.draw_area.player.set_mrl(olio.url)
+		
+		haku = Seekbar(self.draw_area.player)
+		self.vbox.add(haku)
 
 		self.tiedot = DataBox(olio)
 		self.vbox.add(self.tiedot)
 		self.connect("destroy", self.close)
+		self.connect("key_press_event", self.key_pressed)
 		
 	def _realized(self, widget):
 		win_id = widget.get_window().get_xid()
@@ -134,8 +164,26 @@ class VLCWindow(Gtk.Window):
 
 	def close(self, widget):
 		self.draw_area.seis()
+		
+	def key_pressed(self, widget, event):
+		key_method = {
+			Gdk.KEY_Left: "back",
+			Gdk.KEY_Right: "next",
+			}
+		method_name = key_method.get(event.keyval)
+		method = getattr(self, method_name)
+		method()
+		
+	def back(self):
+		self.change_video("n")
+		
+	def next(self):
+		self.change_video("p")
+		
+	def toolbar_direction(self, widget):
+		self.change_video(widget.Mnemonic)
 
-	def change_video(self, widget):
+	def change_video(self, direction):
 #		url = "https://naurunappula.com/go.php"
 #		payload = {
 #			'link_id': self.data.link_id,
@@ -148,8 +196,7 @@ class VLCWindow(Gtk.Window):
 #			headers = dict(referer=url)
 #		)
 #		print(result.text)
-		sessio = mie.get("https://naurunappula.com/go.php?link_id="+self.data.link_id+"&c=2&dir="+widget.Mnemonic)
-		print(sessio.url)
+		sessio = mie.get("https://naurunappula.com/go.php?link_id="+self.data.link_id+"&c=2&dir="+direction)
 		self.data.hae_sessio(sessio)
 		self.draw_area.player.stop()
 		self.draw_area.player.set_mrl(self.data.url)
@@ -159,7 +206,6 @@ class VLCWindow(Gtk.Window):
 		self.vbox.add(self.tiedot)
 		self.queue_draw()
 		self.show_all()
-		print(self.data)
 		
 class YTelement(youtube_dl.YoutubeDL):
 	def __init__(self, url):
