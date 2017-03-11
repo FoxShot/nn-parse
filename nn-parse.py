@@ -60,7 +60,7 @@ class VLCWidget(Gtk.DrawingArea):
 #		self.connect("destroy", lambda b: self.player.stop())
 
 	def seis(self):
-		getattr(self.player, "stop")()
+#		getattr(self.player, "stop")()
 		self.player.stop()
 		self.instance.release()
 		
@@ -105,11 +105,12 @@ class Seekbar(Gtk.HScale):
 		self.connect("destroy", self.close)
 		self.timer_on = True
 		
-	def close():
+	def close(self, widget):
 		self.timer_on = False
 
 	def timeout(self):
-		self.set_value(self.player.get_position())
+		if self.timer_on:
+			self.set_value(self.player.get_position())
 		return self.timer_on
 		
 	def set_length(self):
@@ -149,8 +150,8 @@ class VLCWindow(Gtk.Window):
 
 		self.draw_area.player.set_mrl(olio.url)
 		
-		haku = Seekbar(self.draw_area.player)
-		self.vbox.add(haku)
+		self.haku = Seekbar(self.draw_area.player)
+		self.vbox.add(self.haku)
 
 		self.tiedot = DataBox(olio)
 		self.vbox.add(self.tiedot)
@@ -231,15 +232,13 @@ class YTelement(youtube_dl.YoutubeDL):
 class Thumbnail(Gtk.Image):
 	def __init__(self, url):
 		Gtk.Image.__init__(self)
+		
+		imgname=re.search('\d+[.]jpg', url)
 
-		youtube="https://sgooby.naurunappula.com/images/icons/youtube.gif" #https ja sgooby?
-		video="https://sgooby.naurunappula.com/images/icons/video.gif" #https ja sgooby?
-		if url == youtube:
-			imgname="youtube.gif"
-		elif url == video:
+		if imgname == None:
 			imgname="video.gif"
 		else:
-			imgname=re.search('\d+[.]jpg', url).group(0)
+			imgname=imgname.group(0)
 									
 		if not os.path.isfile("./icons/"+imgname):				
 			response=urllib.request.urlopen(url)
