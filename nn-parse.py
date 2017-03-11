@@ -36,7 +36,17 @@ class login(requests.Session):
 			data = payload,
 			headers = dict(referer=login_url)
 		)
-	
+		tree = html.fromstring(result.content)		
+		self.user_id = tree.xpath('//a[@class="userphoto"]/@href')[0]
+		result = self.get("https://naurunappula.com"+self.user_id)
+		tree = html.fromstring(result.content)
+		self.group_ids = list()
+		self.group_names = list()
+		for kanava in tree.xpath('//div[@class="grouplist"]/ul/li'):
+			link = kanava.xpath('a/@href')[0]
+			self.group_ids.append(re.search('\d+', link).group(0))
+			self.group_names.append(kanava.xpath('a/text()')[0])
+			
 	def hae(self, url):
 		return self.get(
 			url,
@@ -63,31 +73,49 @@ class VLCWidget(Gtk.DrawingArea):
 #		getattr(self.player, "stop")()
 		self.player.stop()
 		self.instance.release()
+
+class Kanavavalikko(Gtk.ComboBoxText):
+	def __init__(self, olio):
+		Gtk.ComboBox.__init__(self)
+		for nimi in mie.group_names:
+			self.append(None, nimi)
+		self.connect("changed", self.add_to)
+		self.olio = olio
 		
+	def add_to(self, widget):
+		gid = mie.group_ids[self.get_active()]
+		self.olio.add_channel(gid)
+
 class DataBox(Gtk.VBox):
 	def __init__(self, olio):	
 		Gtk.VBox.__init__(self)
 		
 		label = Gtk.Label(olio.title)
 		self.add(label)
+		
+		middle = Gtk.HBox()
 
+		label = Gtk.Label("<" + olio.user + "> " + olio.date +" Katsottu: " + olio.katsottu + " kertaa")
+		middle.add(label)
+
+		self.rating = Gtk.Label(olio.rating)
+		middle.add(self.rating)
+		
 		rate_box = Gtk.Box()
 		rate_box.set_homogeneous(True)
-		self.rating = Gtk.Label(olio.rating)
-		rate_box.add(self.rating)
 		for rating in ('+2','+1','-1'):
-			painike = Gtk.Button()
+			painike = Gtk.Button(label=rating)
 			painike.Mnemonic = rating
-			painike.add(Gtk.Label(rating))
 			painike.connect('clicked', self.on_button_clicked)
 			rate_box.add(painike)
-		self.add(rate_box)
+		middle.pack_end(rate_box, False, False, 0)
+
+		self.add(middle)
+		
+		self.add(Kanavavalikko(olio))
 
 		self.data = olio
 
-		label = Gtk.Label("<" + olio.user + "> " + olio.date +" Katsottu: " + olio.katsottu + " kertaa")
-		self.add(label)
-	
 	def on_button_clicked(self, widget):
 		self.data.rate_video(widget.Mnemonic)
 		self.data.hae_rating()
@@ -157,7 +185,7 @@ class VLCWindow(Gtk.Window):
 		self.vbox.add(self.tiedot)
 		self.connect("destroy", self.close)
 		self.connect("key_press_event", self.key_pressed)
-		
+				
 	def _realized(self, widget):
 		win_id = widget.get_window().get_xid()
 		self.draw_area.player.set_xwindow(win_id)
@@ -189,14 +217,14 @@ class VLCWindow(Gtk.Window):
 #		payload = {
 #			'link_id': self.data.link_id,
 #			'c': '2',
-#			'dir': widget.Mnemonic
+#			'dir': direction
 #		}
-#		result = mie.put(
+#		result = mie.post(
 #			url,
 #			data = payload,
 #			headers = dict(referer=url)
 #		)
-#		print(result.text)
+#		print(result.content)
 		sessio = mie.get("https://naurunappula.com/go.php?link_id="+self.data.link_id+"&c=2&dir="+direction)
 		self.data.hae_sessio(sessio)
 		self.draw_area.player.stop()
@@ -322,8 +350,14 @@ class VideoElement:
 			'target_id':self.link_id,
 			'points':rating
 			}
-			
 		mie.post("https://naurunappula.com/rate.php", payload)
+		
+	def add_channel(self, kanava):
+		payload={
+			'link_id':self.link_id,
+			'group_id':kanava
+			}
+		mie.post("https://naurunappula.com/favadd.php", payload)
 
 class Nappi(Gtk.Button):
 	def __init__(self, olio):
