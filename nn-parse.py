@@ -8,14 +8,14 @@ import urllib
 import vlc
 from os.path import expanduser
 home = expanduser("~")	#multi os support
+import gi
+gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk,Gdk,GObject
 from gi.repository.GdkPixbuf import Pixbuf
 import os
 import configparser
 #import mpv
 #from mpv import MPV
-import gi
-gi.require_version('Gtk', '3.0')
 import youtube_dl
 
 class login(requests.Session):
@@ -86,6 +86,24 @@ class Kanavavalikko(Gtk.ComboBoxText):
 		gid = mie.group_ids[self.get_active()]
 		self.olio.add_channel(gid)
 
+class KommenttiLaatikko(Gtk.ListBoxRow):
+	def __init__(self, kommentti):
+		Gtk.ListBoxRow.__init__(self)
+		vbox = Gtk.VBox()
+		hbox = Gtk.HBox()
+		user_vbox = Gtk.VBox()
+		user_vbox.pack_start(Gtk.Label("<"+kommentti.user+">"), False, False, 0)
+		user_vbox.pack_start(Gtk.Label(kommentti.user_data), False, False, 0)
+		hbox.pack_start(user_vbox, False, False, 10)
+		content = Gtk.TextView()
+		content.set_wrap_mode(Gtk.WrapMode.WORD)
+#		content.set_justification(Gtk.GTK_JUSTIFY_LEFT)
+		bufferri = content.get_buffer()
+		bufferri.set_text(kommentti.text)
+		hbox.pack_end(content, True, True, 0)
+		vbox.add(hbox)
+		self.add(vbox)
+
 class DataBox(Gtk.VBox):
 	def __init__(self, olio):	
 		Gtk.VBox.__init__(self)
@@ -113,6 +131,11 @@ class DataBox(Gtk.VBox):
 		self.add(middle)
 		
 		self.add(Kanavavalikko(olio))
+		
+		kommentit = Gtk.ListBox()
+		for kommentti in olio.comments:
+			kommentit.add(KommenttiLaatikko(kommentti))
+		self.add(kommentit)
 
 		self.data = olio
 
@@ -167,22 +190,23 @@ class VLCWindow(Gtk.Window):
 			b.Mnemonic = direction
 			b.connect("clicked", self.change_video)
 			toolbar.insert(b, -1)
-		self.vbox.add(toolbar)
+		self.vbox.pack_start(toolbar, False, False, 0)
 		
 		self.draw_area = VLCWidget()
 		self.draw_area.connect("realize",self._realized)
 		self.vbox.add(self.draw_area)
 
 		olio.hae_video()
+		olio.hae_kommentit()
 		self.data = olio
 
 		self.draw_area.player.set_mrl(olio.url)
 		
 		self.haku = Seekbar(self.draw_area.player)
-		self.vbox.add(self.haku)
+		self.vbox.pack_start(self.haku, False, False, 0)
 
 		self.tiedot = DataBox(olio)
-		self.vbox.add(self.tiedot)
+		self.vbox.pack_end(self.tiedot, False, False, 0)
 		self.connect("destroy", self.close)
 		self.connect("key_press_event", self.key_pressed)
 				
@@ -232,7 +256,7 @@ class VLCWindow(Gtk.Window):
 		self.draw_area.player.play()
 		self.vbox.remove(self.tiedot)
 		self.tiedot = DataBox(self.data)
-		self.vbox.add(self.tiedot)
+		self.vbox.pack_end(self.tiedot, False, False, 0)
 		self.queue_draw()
 		self.show_all()
 		
@@ -284,6 +308,13 @@ class NNement(list):
 		tree = html.fromstring(result.content)
 		for element in tree.xpath('//table[@class="padd gridlist"]/tr/td/a'):
 			self.append(VideoElement(element))
+			
+class Kommentti:
+	def __init__(self, element):
+		self.user = element.xpath('td[@class="author"]//b/text()')[0]
+		self.user_data = " ".join(element.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
+		self.content = element.xpath('td[@class="content"]/div/text()')
+		self.text = " ".join(self.content)
 
 class VideoElement:
 	def __init__(self, gridlist):
@@ -304,7 +335,7 @@ class VideoElement:
 		self.link_id = tree.xpath('//input[@name="link_id"]/@value')[0]
 		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
 		if len(self.rating)!=0:
-			self.rating = self.rating[0]
+			self.rating = self.rating[0].strip()
 		else:
 			self.rating = "<et ole kirjautunut>"
 		self.katsottu = linkdata.xpath('div[@id="linktoolstable"]//p/b/text()')[0]
@@ -342,8 +373,15 @@ class VideoElement:
 		result = mie.hae(self.link)
 		tree = html.fromstring(result.content)
 		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
-		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')[0]	
-			
+		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')[0].strip()
+		
+	def hae_kommentit(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		self.comments = list()
+		for kommentti in tree.xpath('//div[@id="list_comments"]/table/tr')[::2]:
+			self.comments.append(Kommentti(kommentti))
+		
 	def rate_video(self, rating):
 		payload={
 			'service_id':'1',
