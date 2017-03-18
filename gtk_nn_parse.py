@@ -6,25 +6,7 @@ from gi.repository import Gtk,Gdk,GObject
 from gi.repository.GdkPixbuf import Pixbuf
 import vlc
 from nn_parse import *
-
-class VLCWidget(Gtk.DrawingArea):
-	"""Simple VLC widget.
-
-	Its player can be controlled through the 'player' attribute, which
-	is a vlc.MediaPlayer() instance.
-	"""
-	def __init__(self, *p):
-		Gtk.DrawingArea.__init__(self)
-#		self.instance = vlc.Instance('--verbose 2'.split())
-		self.instance = vlc.Instance('--no-xlib')
-		self.player = self.instance.media_player_new()
-		self.set_size_request(640, 480)
-#		self.connect("destroy", lambda b: self.player.stop())
-
-	def seis(self):
-#		getattr(self.player, "stop")()
-		self.player.stop()
-		self.instance.release()
+from gtk_vlc_player import *
 
 class Kanavavalikko(Gtk.ComboBoxText):
 	def __init__(self, olio):
@@ -97,9 +79,8 @@ class VLCWindow(Gtk.Window):
 			b.connect("clicked", self.change_video)
 			toolbar.insert(b, -1)
 		self.vbox.pack_start(toolbar, False, False, 0)
-				
-		self.draw_area = VLCWidget()
-		self.draw_area.connect("realize",self._realized)
+		
+		self.draw_area = DecoratedVLCWidget()
 		self.vbox.add(self.draw_area)
 
 		olio.hae_video()
@@ -107,40 +88,10 @@ class VLCWindow(Gtk.Window):
 		self.data = olio
 
 		self.draw_area.player.set_mrl(olio.url)
-
-		builder = Gtk.Builder()
-		builder.add_from_file("VideonHallinta.glade")
-		builder.connect_signals(self)
-		self.seekbar = builder.get_object("seekbar")
-		self.seekbar.set_range(0,1)
-		self.seekbar.set_digits(5)
-		GObject.timeout_add(200, self.timeout)
-		self.timer_on = True
-		
-		self.vbox.pack_start(builder.get_object("controls"), False, False, 0)
 		
 		self.tiedot = DataBox(olio)
 		self.vbox.pack_end(self.tiedot, False, False, 0)
-		self.connect("destroy", self.close)
 		self.connect("key_press_event", self.key_pressed)
-
-	def timeout(self):
-		if self.timer_on:
-			self.seekbar.set_value(self.draw_area.player.get_position())
-		return self.timer_on
-
-	def set_time(self, widget, scroll, value):
-		if scroll == Gtk.ScrollType.JUMP:
-			self.draw_area.player.set_position(value)
-				
-	def _realized(self, widget):
-		win_id = widget.get_window().get_xid()
-		self.draw_area.player.set_xwindow(win_id)
-		self.draw_area.player.play()
-
-	def close(self, widget):
-		self.timer_on = False
-		self.draw_area.seis()
 		
 	def key_pressed(self, widget, event):
 		key_method = {
