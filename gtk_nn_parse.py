@@ -55,29 +55,17 @@ class DataBox(Gtk.VBox):
 	def __init__(self, olio):	
 		Gtk.VBox.__init__(self)
 		
-		label = Gtk.Label(olio.title)
-		self.add(label)
-		
-		middle = Gtk.HBox()
-
-		label = Gtk.Label("<" + olio.user + "> " + olio.date +" Katsottu: " + olio.katsottu + " kertaa")
-		middle.add(label)
-
-		self.rating = Gtk.Label(olio.rating)
-		middle.add(self.rating)
-		
-		rate_box = Gtk.Box()
-		rate_box.set_homogeneous(True)
-		for rating in ('+2','+1','-1'):
-			painike = Gtk.Button(label=rating)
-			painike.Mnemonic = rating
-			painike.connect('clicked', self.on_button_clicked)
-			rate_box.add(painike)
-		middle.pack_end(rate_box, False, False, 0)
-
-		self.add(middle)
-		
-		self.add(Kanavavalikko(olio))
+		builder = Gtk.Builder()
+		builder.add_from_file("DataLaatikko.glade")
+		builder.connect_signals(self)
+		title = builder.get_object("title")
+		title.set_label(olio.title)
+		send_data = builder.get_object("send_data")
+		send_data.set_label("<" + olio.user + "> " + olio.date +" Katsottu: " + olio.katsottu + " kertaa")
+		self.rating = builder.get_object("rating")
+		self.rating.set_label(olio.rating)
+#		self = builder.get_object("data_box")
+		self.add(builder.get_object("data_box"))
 		
 		kommentit = Gtk.ListBox()
 		for kommentti in olio.comments:
@@ -87,38 +75,9 @@ class DataBox(Gtk.VBox):
 		self.data = olio
 
 	def on_button_clicked(self, widget):
-		self.data.rate_video(widget.Mnemonic)
+		self.data.rate_video(widget.get_label())
 		self.data.hae_rating()
 		self.rating.set_label(self.data.rating)
-		
-class Seekbar(Gtk.HScale):
-	def __init__(self, VLCWidget):
-		Gtk.HScale.__init__(self)
-		self.player = VLCWidget
-		self.connect("change-value", self.set_time)
-		self.set_range(0,1)
-		self.set_digits(5)
-		self.set_draw_value(False)
-		GObject.timeout_add(200, self.timeout)
-		self.connect("destroy", self.close)
-		self.timer_on = True
-		
-	def close(self, widget):
-		self.timer_on = False
-
-	def timeout(self):
-		if self.timer_on:
-			self.set_value(self.player.get_position())
-		return self.timer_on
-		
-	def set_length(self):
-		print(self.player.get_length())
-		self.set_range(0,1)
-		
-	def set_time(self, widget, scroll, value):
-		if scroll == Gtk.ScrollType.JUMP:
-			self.player.set_position(value)
-
 		
 class VLCWindow(Gtk.Window):
 	def __init__(self, olio):
@@ -138,7 +97,7 @@ class VLCWindow(Gtk.Window):
 			b.connect("clicked", self.change_video)
 			toolbar.insert(b, -1)
 		self.vbox.pack_start(toolbar, False, False, 0)
-		
+				
 		self.draw_area = VLCWidget()
 		self.draw_area.connect("realize",self._realized)
 		self.vbox.add(self.draw_area)
@@ -148,14 +107,31 @@ class VLCWindow(Gtk.Window):
 		self.data = olio
 
 		self.draw_area.player.set_mrl(olio.url)
-		
-		self.haku = Seekbar(self.draw_area.player)
-		self.vbox.pack_start(self.haku, False, False, 0)
 
+		builder = Gtk.Builder()
+		builder.add_from_file("VideonHallinta.glade")
+		builder.connect_signals(self)
+		self.seekbar = builder.get_object("seekbar")
+		self.seekbar.set_range(0,1)
+		self.seekbar.set_digits(5)
+		GObject.timeout_add(200, self.timeout)
+		self.timer_on = True
+		
+		self.vbox.pack_start(builder.get_object("controls"), False, False, 0)
+		
 		self.tiedot = DataBox(olio)
 		self.vbox.pack_end(self.tiedot, False, False, 0)
 		self.connect("destroy", self.close)
 		self.connect("key_press_event", self.key_pressed)
+
+	def timeout(self):
+		if self.timer_on:
+			self.seekbar.set_value(self.draw_area.player.get_position())
+		return self.timer_on
+
+	def set_time(self, widget, scroll, value):
+		if scroll == Gtk.ScrollType.JUMP:
+			self.draw_area.player.set_position(value)
 				
 	def _realized(self, widget):
 		win_id = widget.get_window().get_xid()
@@ -163,6 +139,7 @@ class VLCWindow(Gtk.Window):
 		self.draw_area.player.play()
 
 	def close(self, widget):
+		self.timer_on = False
 		self.draw_area.seis()
 		
 	def key_pressed(self, widget, event):

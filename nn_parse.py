@@ -137,6 +137,7 @@ class VideoElement:
 			self.title = "<Ei nimikettä>"
 		self.link = sessio.url
 		self.hae_video()
+		self.hae_kommentit()
 	
 	def hae_rating(self):
 		result = mie.hae(self.link)
