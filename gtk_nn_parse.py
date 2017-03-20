@@ -2,10 +2,9 @@
 
 import os
 import requests
-import urllib
 import math
-import gi
 import re
+import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk,Gdk
 from gi.repository.GdkPixbuf import Pixbuf
@@ -153,7 +152,7 @@ class Thumbnail(Gtk.Image):
 			imgname=imgname.group(0)
 									
 		if not os.path.isfile("./icons/"+imgname):				
-			response=urllib.request.urlopen(url)
+			response=requests.get(url)
 			with open("./icons/"+imgname, 'wb') as img:
 				img.write(response.read())
 
