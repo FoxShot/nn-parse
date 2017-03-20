@@ -3,11 +3,8 @@
 from lxml import html
 import requests
 import re
-import math
-import urllib
 from os.path import expanduser
 home = expanduser("~")	#multi os support
-import os
 import configparser
 import youtube_dl
 
@@ -60,13 +57,6 @@ class YTelement(youtube_dl.YoutubeDL):
 				'http:' + url,
 				download=False # We just want to extract the info
 			)
-		if 'entries' in result:
-			# Can be a playlist or a list of videos
-			formats = result['entries'][0]['formats']
-		else:
-			# Just a video
-			formats = result['formats']
-		
 		self.video = result['url']
 
 class NNement(list):
@@ -80,6 +70,7 @@ class NNement(list):
 			
 class Kommentti:
 	def __init__(self, element):
+		self.user_thumbnail = element.xpath('td[@class="author_photo"]//img/@src')[0]
 		self.user = element.xpath('td[@class="author"]//b/text()')[0]
 		self.user_data = " ".join(element.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
 		self.content = element.xpath('td[@class="content"]/div/text()')

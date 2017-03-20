@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+import os
+import requests
+import urllib
+import math
 import gi
+import re
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk,Gdk,GObject
+from gi.repository import Gtk,Gdk
 from gi.repository.GdkPixbuf import Pixbuf
-import vlc
-from nn_parse import *
-from gtk_vlc_player import *
+from nn_parse import NNement, mie
+from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
 	def __init__(self, olio):
@@ -25,6 +29,8 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		Gtk.ListBoxRow.__init__(self)
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
+		user_thumbnail = builder.get_object("user_thumbnail")
+		user_thumbnail.set_from_pixbuf(Thumbnail(kommentti.user_thumbnail).get_pixbuf())
 		user_name = builder.get_object("user_name")
 		user_name.set_label("<"+kommentti.user+">")
 		user_data = builder.get_object("user_data")
@@ -212,7 +218,7 @@ class MyWindow(Gtk.Window):
 		self.grid = Ristikko(self.page)
 		self.jako.pack_start(self.grid, True, True, 0)
 		self.queue_draw()
-		self.show_all()		#tämä oli tärkeä
+		self.show_all()
 
 win = MyWindow()
 win.connect("delete-event", Gtk.main_quit)

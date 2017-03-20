@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import sys
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk,Gdk,GObject
+from gi.repository import Gtk,GObject
 import vlc
 
 instance = vlc.Instance('--no-xlib')
@@ -108,7 +109,3 @@ if __name__ == '__main__':
 		# Only 1 file. Simple interface
 		p=VideoPlayer()
 		p.main(sys.argv[1])
-	else:
-		# Multiple files.
-		p=MultiVideoPlayer()
-		p.main(sys.argv[1:])
