@@ -154,7 +154,8 @@ class Thumbnail(Gtk.Image):
 		if not os.path.isfile("./icons/"+imgname):				
 			response=requests.get(url)
 			with open("./icons/"+imgname, 'wb') as img:
-				img.write(response.read())
+				for chunk in response:
+					img.write(chunk)
 
 		pb = Pixbuf.new_from_file("./icons/"+imgname)
 		self.set_from_pixbuf(pb)
