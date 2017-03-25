@@ -9,9 +9,15 @@ Copyright (C) 2017 FoxShot
 * PyGTK
 * youtube-dl
 * VLC
+* python-vlc
+
+VLC APIn asentamista varten tarvitaan python-setuptools:n sisältämä easy_install. API voidaan asentaa suoraan PyPi:stä komennolla:
+```
+sudo python3 -m easy_install python-vlc
+```
 
 ### 2. Käyttö ###
 
 ```
-sudo python3 nn-parse.py
+python3 nn-parse.py
 ```
