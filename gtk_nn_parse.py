@@ -8,7 +8,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk,Gdk
 from gi.repository.GdkPixbuf import Pixbuf
-from nn_parse import NNement, mie
+from nn_parse import NNement,mie
 from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
@@ -29,7 +29,7 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
 		user_thumbnail = builder.get_object("user_thumbnail")
-		user_thumbnail.set_from_pixbuf(Thumbnail(kommentti.user_thumbnail).get_pixbuf())
+		user_thumbnail.set_from_file(Avatar(kommentti.user_thumbnail).get_file())
 		user_name = builder.get_object("user_name")
 		user_name.set_label("<"+kommentti.user+">")
 		user_data = builder.get_object("user_data")
@@ -140,32 +140,49 @@ class VLCWindow(Gtk.Window):
 		self.queue_draw()
 		self.show_all()
 
-class Thumbnail(Gtk.Image):
-	def __init__(self, url):
-		Gtk.Image.__init__(self)
-		
-		imgname=re.search('\d+[.]jpg', url)
+class Kuva(object):
+	folder = None
 
-		if imgname == None:
-			imgname="video.gif"
-		else:
-			imgname=imgname.group(0)
-									
-		if not os.path.isfile("./icons/"+imgname):				
-			response=requests.get(url)
-			with open("./icons/"+imgname, 'wb') as img:
+	def __init__(self, url):
+		self.imgname = re.search('\d+[.]jpg', url)
+		self.url = url
+		
+	def get_file(self):
+		return self.folder + self.imgname
+		
+	def write_file(self):
+		if not os.path.isfile(self.folder+self.imgname):				
+			response=requests.get(self.url)
+			with open(self.folder+self.imgname, 'wb') as img:
 				for chunk in response:
 					img.write(chunk)
+		
+class Avatar(Kuva):
+	folder = "./avatars/"
+	
+	def __init__(self, url):
+		Kuva.__init__(self, url)
+		self.imgname = self.imgname.group(0)
+		self.write_file()
 
-		pb = Pixbuf.new_from_file("./icons/"+imgname)
-		self.set_from_pixbuf(pb)
+class Thumbnail(Kuva):
+	folder = "./thumbnails/"
+	
+	def __init__(self, url):
+		Kuva.__init__(self, url)
+		if self.imgname == None:
+			self.imgname="video.gif"
+		else:
+			self.imgname=self.imgname.group(0)
+		self.write_file()
 
 class Nappi(Gtk.Button):
 	def __init__(self, olio):
 		Gtk.Button.__init__(self)
 		self.Mnemonic = olio
 		jako = Gtk.VBox()
-		kuva = Thumbnail(olio.image)
+		kuva = Gtk.Image()
+		kuva.set_from_file(Thumbnail(olio.image).get_file())
 		jako.add(kuva)
 		label = Gtk.Label(olio.name)
 		jako.add(label)
