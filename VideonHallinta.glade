@@ -13,6 +13,7 @@
         <property name="receives_default">True</property>
         <property name="use_stock">True</property>
         <property name="xalign">0.50999999046325684</property>
+        <signal name="clicked" handler="play_pause" swapped="no"/>
       </object>
       <packing>
         <property name="expand">False</property>
