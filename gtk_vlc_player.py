@@ -25,12 +25,11 @@ class VLCWidget(Gtk.DrawingArea):
 	def _realized(self, widget):
 		win_id = widget.get_window().get_xid()
 		self.player.set_xwindow(win_id)
-		self.player.play()
 
 	def close(self, widget):
 		self.player.stop()
 		instance.release()
-		
+				
 class DecoratedVLCWidget(Gtk.VBox):
 	"""Decorated VLC widget.
 
@@ -41,12 +40,16 @@ class DecoratedVLCWidget(Gtk.VBox):
 	"""
 	def __init__(self, *p):
 		Gtk.VBox.__init__(self)
-		self._vlc_widget = VLCWidget(*p)
-		self.player = self._vlc_widget.player
-		self.pack_start(self._vlc_widget, True, True, 0)
-		self._toolbar = self.get_player_control_toolbar()
-		self.pack_start(self._toolbar, False, False, 0)
+		self.player_paused=False
+		self.is_player_active = False
+		_vlc_widget = VLCWidget(*p)
+		self.player = _vlc_widget.player
+		self.pack_start(_vlc_widget, True, True, 0)
+		_toolbar = self.get_player_control_toolbar()
+		self.pack_start(_toolbar, False, False, 0)
 		self.connect("destroy", self.close)
+		self.events = self.player.event_manager()
+		self.events.event_attach(vlc.EventType.MediaPlayerVout, self._realized)
 
 	def get_player_control_toolbar(self):
 		"""Return a player control toolbar
@@ -59,29 +62,59 @@ class DecoratedVLCWidget(Gtk.VBox):
 		self.seekbar.set_digits(5)
 		GObject.timeout_add(200, self.timeout)
 		self.timer_on = True
-		self.play = builder.get_object("play")
-		self.play.set_label(Gtk.STOCK_MEDIA_PAUSE)
-		self.is_playing = True
+		self.playback_button = builder.get_object("play")
+		self.play_image = Gtk.Image.new_from_icon_name(
+				"gtk-media-play",
+				Gtk.IconSize.MENU
+			)
+		self.pause_image = Gtk.Image.new_from_icon_name(
+				"gtk-media-pause",
+				Gtk.IconSize.MENU
+			)
+		self.volume = builder.get_object("volume")
 		return builder.get_object("controls")
 		
-	def play_pause(self, button):
-		if self.is_playing:
-			self.player.pause()
-			self.is_playing = False
-			button.set_label(Gtk.STOCK_MEDIA_PLAY)
-		else:
+	def toggle_player_playback(self, widget, data=None):
+		"""	Handler for Player's Playback Button (Play/Pause).
+		"""
+		if self.is_player_active == False and self.player_paused == False:
 			self.player.play()
-			self.is_playing = True
-			button.set_label(Gtk.STOCK_MEDIA_PAUSE)
+			self.playback_button.set_image(self.pause_image)
+			self.is_player_active = True
+
+		elif self.is_player_active == True and self.player_paused == True:
+			self.player.play()
+			self.playback_button.set_image(self.pause_image)
+			self.player_paused = False
+
+		elif self.is_player_active == True and self.player_paused == False:
+			self.player.pause()
+			self.playback_button.set_image(self.play_image)
+			self.player_paused = True
+		else:
+			pass
 		
 	def timeout(self):
 		if self.timer_on:
-			self.seekbar.set_value(self._vlc_widget.player.get_position())
+			self.seekbar.set_value(self.player.get_position())
 		return self.timer_on
+
+	def set_media(self, path):
+		media = instance.media_new(path)
+		self.player.set_media(media)
 
 	def set_time(self, widget, scroll, value):
 		if scroll == Gtk.ScrollType.JUMP:
 			self.player.set_position(value)
+			
+	def set_volume(self, widget, value):
+		value = round(value) #vlc takes ints as volume
+		self.player.audio_set_volume(value)
+		
+	def _realized(self, event):
+		self.volume.set_value(self.player.audio_get_volume())
+		self.is_player_active = True
+		self.events.event_detach(vlc.EventType.MediaPlayerVout)
 			
 	def close(self, widget):
 		self.timer_on = False
@@ -93,7 +126,7 @@ class VideoPlayer:
 		self.vlc = DecoratedVLCWidget()
 
 	def main(self, fname):
-		self.vlc.player.set_media(instance.media_new(fname))
+		self.vlc.set_media(fname)
 		w = Gtk.Window()
 		w.add(self.vlc)
 		w.show_all()

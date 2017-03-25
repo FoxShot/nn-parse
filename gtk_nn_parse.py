@@ -92,7 +92,8 @@ class VLCWindow(Gtk.Window):
 		olio.hae_kommentit()
 		self.data = olio
 
-		self.draw_area.player.set_mrl(olio.url)
+		self.draw_area.set_media(olio.url)
+		self.draw_area.player.play()
 		
 		self.tiedot = DataBox(olio)
 		self.vbox.pack_end(self.tiedot, False, False, 0)
