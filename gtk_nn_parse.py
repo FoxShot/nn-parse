@@ -13,16 +13,15 @@ from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
 	def __init__(self, olio):
-		Gtk.ComboBox.__init__(self)
+		Gtk.ComboBoxText.__init__(self)
 		for nimi in mie.group_names:
 			self.append(None, nimi)
-		self.connect("changed", self.add_to)
 		self.olio = olio
 		
-	def add_to(self, widget):
+	def add_to(self):
 		gid = mie.group_ids[self.get_active()]
 		self.olio.add_channel(gid)
-
+		
 class KommenttiLaatikko(Gtk.ListBoxRow):
 	def __init__(self, kommentti):
 		Gtk.ListBoxRow.__init__(self)
@@ -38,67 +37,77 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		comment.get_buffer().set_text(kommentti.text)
 		self.add(builder.get_object("comment_box"))
 
-class DataBox(Gtk.VBox):
-	def __init__(self, olio):	
-		Gtk.VBox.__init__(self)
-		
-		builder = Gtk.Builder()
-		builder.add_from_file("DataLaatikko.glade")
-		builder.connect_signals(self)
-		title = builder.get_object("title")
-		title.set_label(olio.title)
-		send_data = builder.get_object("send_data")
-		send_data.set_label("<" + olio.user + "> " + olio.date +" Katsottu: " + olio.katsottu + " kertaa")
-		self.rating = builder.get_object("rating")
-		self.rating.set_label(olio.rating)
-#		self = builder.get_object("data_box")
-		self.add(builder.get_object("data_box"))
-		
-		kommentit = Gtk.ListBox()
-		for kommentti in olio.comments:
-			kommentit.add(KommenttiLaatikko(kommentti))
-		self.add(kommentit)
-
-		self.data = olio
-
-	def on_button_clicked(self, widget):
-		self.data.rate_video(widget.get_label())
-		self.data.hae_rating()
-		self.rating.set_label(self.data.rating)
-		
 class VLCWindow(Gtk.Window):
 	def __init__(self, olio):
 		Gtk.Window.__init__(self, title="VLC")
 		
-		self.vbox = Gtk.VBox()
-		self.add(self.vbox)
-
-		toolbar = Gtk.Toolbar()
-		for icon, direction in (
-			((Gtk.STOCK_GO_BACK), ('n')),
-			((Gtk.STOCK_GO_FORWARD), ('p')),
-#			((Gtk.STOCK_REFRESH), (''))
-			):
-			b = Gtk.ToolButton(icon)
-			b.Mnemonic = direction
-			b.connect("clicked", self.change_video)
-			toolbar.insert(b, -1)
-		self.vbox.pack_start(toolbar, False, False, 0)
-		
-		self.draw_area = DecoratedVLCWidget()
-		self.vbox.add(self.draw_area)
-
 		olio.hae_video()
 		olio.hae_kommentit()
+		olio.hae_kanavat()
+		olio.hae_tagit()
 		self.data = olio
-
+		self.connect("key_press_event", self.key_pressed)
+		self.draw_area = DecoratedVLCWidget()
 		self.draw_area.set_media(olio.url)
 		self.draw_area.player.play()
+
+		builder = Gtk.Builder()
+		builder.add_from_file("VideoIkkuna.glade")
+		builder.connect_signals(self)
+		self.add(builder.get_object("video_window"))
+
+		self.title = builder.get_object("title")
+		self.send_data = builder.get_object("send_data")
+		self.rating = builder.get_object("rating")
+
+		channel_select = builder.get_object("channel_select")
+		self.valikko = Kanavavalikko(olio)
+		channel_select.add(self.valikko)
+
+		self.channels_list = builder.get_object("channels_list")
+
+		self.tags_list = builder.get_object("tags_list")
+
+		video_area = builder.get_object("video_area")
+		video_area.add(self.draw_area)
 		
-		self.tiedot = DataBox(olio)
-		self.vbox.pack_end(self.tiedot, False, False, 0)
-		self.connect("key_press_event", self.key_pressed)
+#		comments_window = builder.get_object("comments_window")
+#		comments_window.set_max_content_height(200) #vaatii GTK version 3.22
+		self.comments_list = builder.get_object("comments")
 		
+		self.fill_lists()
+
+	def fill_lists(self):
+		self.title.set_label(self.data.title)
+		self.send_data.set_label("<" + self.data.user + "> " + self.data.date +" Katsottu: " + self.data.katsottu + " kertaa")
+		self.rating.set_label(self.data.rating)
+		self.kanavat = Gtk.VBox()
+		for kanava in self.data.channels:
+			self.kanavat.add(Gtk.Label(kanava))
+		self.channels_list.add(self.kanavat) 
+		self.tagit = Gtk.VBox()
+		for tagi in self.data.tags:
+			self.tagit.add(Gtk.Label(tagi))
+		self.tags_list.add(self.tagit)
+		self.kommentit = Gtk.ListBox()
+		for kommentti in self.data.comments:
+			self.kommentit.add(KommenttiLaatikko(kommentti))
+		self.comments_list.add(self.kommentit)
+		
+	def empty_lists(self):
+		self.channels_list.remove(self.kanavat)
+		self.tags_list.remove(self.tagit)
+		self.comments_list.remove(self.kommentit)
+		
+
+	def do_rating(self, widget):
+		self.data.rate_video(widget.get_label())
+		self.data.hae_rating()
+		self.rating.set_label(self.data.rating)
+
+	def add_channel(self, widget):
+		self.valikko.add_to()
+
 	def key_pressed(self, widget, event):
 		key_method = {
 			Gdk.KEY_Left: "back",
@@ -108,15 +117,12 @@ class VLCWindow(Gtk.Window):
 		method = getattr(self, method_name)
 		method()
 		
-	def back(self):
+	def back(self, *widget):
 		self.change_video("n")
 		
-	def next(self):
+	def next(self, *widget):
 		self.change_video("p")
 		
-	def toolbar_direction(self, widget):
-		self.change_video(widget.Mnemonic)
-
 	def change_video(self, direction):
 #		url = "https://naurunappula.com/go.php"
 #		payload = {
@@ -135,9 +141,8 @@ class VLCWindow(Gtk.Window):
 		self.draw_area.player.stop()
 		self.draw_area.player.set_mrl(self.data.url)
 		self.draw_area.player.play()
-		self.vbox.remove(self.tiedot)
-		self.tiedot = DataBox(self.data)
-		self.vbox.pack_end(self.tiedot, False, False, 0)
+		self.empty_lists()
+		self.fill_lists()
 		self.queue_draw()
 		self.show_all()
 

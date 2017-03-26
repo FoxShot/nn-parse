@@ -129,6 +129,8 @@ class VideoElement:
 		self.link = sessio.url
 		self.hae_video()
 		self.hae_kommentit()
+		self.hae_kanavat()
+		self.hae_tagit()
 	
 	def hae_rating(self):
 		result = mie.hae(self.link)
