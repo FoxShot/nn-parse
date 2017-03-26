@@ -142,6 +142,16 @@ class VideoElement:
 		self.comments = list()
 		for kommentti in tree.xpath('//div[@id="list_comments"]/table/tr')[::2]:
 			self.comments.append(Kommentti(kommentti))
+			
+	def hae_kanavat(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		self.channels = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/g/")]/text()')
+
+	def hae_tagit(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		self.tags = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/s/")]/text()')
 		
 	def rate_video(self, rating):
 		payload={
