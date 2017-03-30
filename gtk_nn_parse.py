@@ -74,6 +74,7 @@ class VLCWindow(Gtk.Window):
 #		comments_window = builder.get_object("comments_window")
 #		comments_window.set_max_content_height(200) #vaatii GTK version 3.22
 		self.comments_list = builder.get_object("comments")
+		self.comment_input = builder.get_object("comment_input")
 		
 		self.fill_lists()
 
@@ -98,15 +99,34 @@ class VLCWindow(Gtk.Window):
 		self.channels_list.remove(self.kanavat)
 		self.tags_list.remove(self.tagit)
 		self.comments_list.remove(self.kommentit)
-		
 
 	def do_rating(self, widget):
 		self.data.rate_video(widget.get_label())
 		self.data.hae_rating()
 		self.rating.set_label(self.data.rating)
+		
+	def add_comment(self, widget):
+		text = self.comment_input.get_text(self.comment_input.get_start_iter(), self.comment_input.get_end_iter(), False)
+		self.data.add_comment(text)
+		self.data.hae_kommentit()
+		self.comments_list.remove(self.kommentit)
+		self.kommentit = Gtk.ListBox()
+		for kommentti in self.data.comments:
+			self.kommentit.add(KommenttiLaatikko(kommentti))
+		self.comments_list.add(self.kommentit)
+		self.queue_draw()
+		self.show_all()		
 
 	def add_channel(self, widget):
 		self.valikko.add_to()
+		self.data.hae_kanavat()
+		self.channels_list.remove(self.kanavat)
+		self.kanavat = Gtk.VBox()
+		for kanava in self.data.channels:
+			self.kanavat.add(Gtk.Label(kanava))
+		self.channels_list.add(self.kanavat) 
+		self.queue_draw()
+		self.show_all()
 
 	def key_pressed(self, widget, event):
 		key_method = {
