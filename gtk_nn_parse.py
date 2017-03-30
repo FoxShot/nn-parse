@@ -57,7 +57,9 @@ class VLCWindow(Gtk.Window):
 		self.add(builder.get_object("video_window"))
 
 		self.title = builder.get_object("title")
-		self.send_data = builder.get_object("send_data")
+		self.user = builder.get_object("user")
+		self.date = builder.get_object("date")
+		self.times_watched = builder.get_object("times_watched")
 		self.rating = builder.get_object("rating")
 
 		channel_select = builder.get_object("channel_select")
@@ -69,7 +71,7 @@ class VLCWindow(Gtk.Window):
 		self.tags_list = builder.get_object("tags_list")
 
 		video_area = builder.get_object("video_area")
-		video_area.add(self.draw_area)
+		video_area.pack_start(self.draw_area, True, True, 0)
 		
 #		comments_window = builder.get_object("comments_window")
 #		comments_window.set_max_content_height(200) #vaatii GTK version 3.22
@@ -80,15 +82,17 @@ class VLCWindow(Gtk.Window):
 
 	def fill_lists(self):
 		self.title.set_label(self.data.title)
-		self.send_data.set_label("<" + self.data.user + "> " + self.data.date +" Katsottu: " + self.data.katsottu + " kertaa")
+		self.user.set_label("<" + self.data.user + "> ")
+		self.date.set_label(self.data.date)
+		self.times_watched.set_label("Katsottu: " + self.data.katsottu + " kertaa")
 		self.rating.set_label(self.data.rating)
 		self.kanavat = Gtk.VBox()
 		for kanava in self.data.channels:
-			self.kanavat.add(Gtk.Label(kanava))
+			self.kanavat.pack_start(Gtk.Label(kanava), False, False, 0)
 		self.channels_list.add(self.kanavat) 
 		self.tagit = Gtk.VBox()
 		for tagi in self.data.tags:
-			self.tagit.add(Gtk.Label(tagi))
+			self.tagit.pack_start(Gtk.Label(tagi), False, False, 0)
 		self.tags_list.add(self.tagit)
 		self.kommentit = Gtk.ListBox()
 		for kommentti in self.data.comments:
