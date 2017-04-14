@@ -74,7 +74,30 @@ class Kommentti:
 		self.user = element.xpath('td[@class="author"]//b/text()')[0]
 		self.user_data = " ".join(element.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
 		self.content = element.xpath('td[@class="content"]/div/text()')
-		self.text = " ".join(self.content)
+		self.quote = " ".join(element.xpath('td[@class="content"]//div[@class="quote_msg"]/text()')).strip()
+		self.quote_user = " ".join(element.xpath('td[@class="content"]//div[@class="quote_msg"]/a/text()')).strip()
+		self.text = self.quote_user + " " + self.quote + " ".join(self.content)
+		
+class Kommentti_sent:
+	def __init__(self, element):
+		self.comment_date = element.xpath('span/text()')
+		self.comment_id = re.search("\d+","".join(element.xpath('@id'))).group(0)
+		self.content = " ".join(element.xpath('text()')).strip()
+#		payload={
+#			'action':'get_message',
+#			'msg_id':self.comment_id
+#			}
+#		message = mie.post("https://naurunappula.com/comment.php", payload)
+#		message = mie.get("https://naurunappula.com/comment.php?action=get_message&msg_id:"+self.comment_id).text
+
+class User_comments:
+	def __init__(self):
+		result = mie.get("https://naurunappula.com" + mie.user_id + "?c=1000")
+		tree = html.fromstring(result.content)
+		elements = tree.xpath('//div[@class="sent_comments"]/div')
+		self.kommentit = list()
+		for kommentti in elements[1::2]:
+			self.kommentit.append(Kommentti_sent(kommentti))
 
 class VideoElement:
 	def __init__(self, gridlist):
@@ -139,8 +162,15 @@ class VideoElement:
 		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')[0].strip()
 		
 	def hae_kommentit(self):
-		result = mie.get(self.link)
-		tree = html.fromstring(result.content)
+		payload={
+			'from_viewmode':'1',
+			'service_id':'1',
+			'target_id':self.link_id,
+			'page_id':'-1',	#näytä kaikki
+			'action':'fetch'
+			}
+		result = mie.post("https://naurunappula.com/comment.php", payload)
+		tree = html.fromstring(result.text)
 		self.comments = list()
 		for kommentti in tree.xpath('//div[@id="list_comments"]/table/tr')[::2]:
 			self.comments.append(Kommentti(kommentti))
@@ -169,5 +199,20 @@ class VideoElement:
 			'group_id':kanava
 			}
 		mie.post("https://naurunappula.com/favadd.php", payload)
+		
+	def add_tag(self, tag):
+		payload={
+			'link_id':self.link_id,
+			'inlinetagsuggestion':1,
+			'suggest_tag':tag
+			}
+		mie.post("https://naurunappula.com/editor.php", payload)
 
-
+	def add_comment(self, comment):
+		payload={
+			'action':'send_comment',
+			'service_id':'1',
+			'target_id':self.link_id,
+			'comment':comment
+			}
+		mie.post("https://naurunappula.com/comment.php", payload)
