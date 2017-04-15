@@ -6,8 +6,8 @@ import math
 import re
 import gi
 gi.require_version('Gtk', '3.0')
+from lxml import html
 from gi.repository import Gtk,Gdk
-from gi.repository.GdkPixbuf import Pixbuf
 from nn_parse import NNement,mie
 from gtk_vlc_player import DecoratedVLCWidget
 
@@ -28,11 +28,11 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
 		user_thumbnail = builder.get_object("user_thumbnail")
-		user_thumbnail.set_from_file(Avatar(kommentti.user_thumbnail).get_file())
+		user_thumbnail.set_from_file(Avatar(kommentti.user.avatar).get_file())
 		user_name = builder.get_object("user_name")
-		user_name.set_label("<"+kommentti.user+">")
+		user_name.set_label("<"+kommentti.user.name+">")
 		user_data = builder.get_object("user_data")
-		user_data.set_label(kommentti.user_data)
+		user_data.set_label(kommentti.user.comment_data)
 		comment = builder.get_object("comment")
 		comment.get_buffer().set_text(kommentti.text)
 		self.add(builder.get_object("comment_box"))
@@ -69,6 +69,7 @@ class VLCWindow(Gtk.Window):
 		self.channels_list = builder.get_object("channels_list")
 
 		self.tags_list = builder.get_object("tags_list")
+		self.tag_input = builder.get_object("tag_input")
 
 		video_area = builder.get_object("video_area")
 		video_area.pack_start(self.draw_area, True, True, 0)
@@ -116,7 +117,7 @@ class VLCWindow(Gtk.Window):
 		self.comments_list.remove(self.kommentit)
 		self.kommentit = Gtk.ListBox()
 		for kommentti in self.data.comments:
-			self.kommentit.add(KommenttiLaatikko(kommentti))
+			self.kommentit.pack_start(KommenttiLaatikko(kommentti), False, False, 0)
 		self.comments_list.add(self.kommentit)
 		self.queue_draw()
 		self.show_all()		
@@ -127,10 +128,14 @@ class VLCWindow(Gtk.Window):
 		self.channels_list.remove(self.kanavat)
 		self.kanavat = Gtk.VBox()
 		for kanava in self.data.channels:
-			self.kanavat.add(Gtk.Label(kanava))
+			self.kanavat.pack_start(Gtk.Label(kanava), False, False, 0)
 		self.channels_list.add(self.kanavat) 
 		self.queue_draw()
 		self.show_all()
+		
+	def add_tag(self, widget):
+		tag = self.tag_input.get_text()
+		self.data.add_tag(tag)
 
 	def key_pressed(self, widget, event):
 		key_method = {
@@ -148,19 +153,13 @@ class VLCWindow(Gtk.Window):
 		self.change_video("p")
 		
 	def change_video(self, direction):
-#		url = "https://naurunappula.com/go.php"
-#		payload = {
-#			'link_id': self.data.link_id,
-#			'c': '2',
-#			'dir': direction
-#		}
-#		result = mie.post(
-#			url,
-#			data = payload,
-#			headers = dict(referer=url)
-#		)
-#		print(result.content)
-		sessio = mie.get("https://naurunappula.com/go.php?link_id="+self.data.link_id+"&c=2&dir="+direction)
+		url = "https://naurunappula.com/go.php"
+		payload = {
+			'link_id': self.data.link_id,
+			'c': '2',
+			'dir': direction
+		}
+		sessio = mie.get(url, params=payload)
 		self.data.hae_sessio(sessio)
 		self.draw_area.player.stop()
 		self.draw_area.player.set_mrl(self.data.url)

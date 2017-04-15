@@ -37,13 +37,55 @@ class login(requests.Session):
 			self.group_ids.append(re.search('\d+', link).group(0))
 			self.group_names.append(kanava.xpath('a/text()')[0])
 			
-	def hae(self, url):
-		return self.get(
-			url,
-			headers = dict(referer = url)
-		)
-
 mie = login()
+
+class User:
+	def __init__(self, user_id):
+		self.id = user_id
+#		self.name = 
+#		self.avatar
+		
+	def peek(self):
+		payload = {
+#			'href':'/u/'+self.id,
+			'type':'user',
+			'target':'70329'
+		}
+#		result = mie.post("https://narunappula.com/peek.php", data=payload)
+#		result = requests.post(
+#			'http://naurunappula.com/peek.php',
+#			data='type=user&target=26515',
+#			headers={'content-type': 'text/plain'}
+#			)
+		result = requests.get('http://naurunappula.com/peek.php', params=payload)
+#		user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36'
+#		headers = {'User-Agent': user_agent}
+#		result = mie.get("https://naurunappula.com/peek.php?type=username&target=/u/70329/", headers=headers)
+#		result = requests.get("http://naununappula.com/")
+		print(result.headers['content-length'])
+#		print(BytesIO(result.content).readlines())
+#		for line in result.iter_lines(decode_unicode=True):
+#			print("yks")
+		
+	def add_friend(self):
+		self.set_friend('add')
+		
+	def remove_friend(self):
+		self.set_friend('delete')
+		
+	def set_friend(self, operation):
+		payload = {
+			operation: self.id
+		}
+		mie.post("https://naurunappula.com/f.php", payload)
+		
+class Comment_user(User):
+	def __init__(self, comment_box):
+		user_id = comment_box.xpath('td[@class="author"]/div[@class="username"]/a/@href')[0]
+		User.__init__(self, user_id)
+		self.avatar = comment_box.xpath('td[@class="author_photo"]//img/@src')[0]
+		self.name = comment_box.xpath('td[@class="author"]//b/text()')[0]
+		self.comment_data = " ".join(comment_box.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
 		
 class YTelement(youtube_dl.YoutubeDL):
 	def __init__(self, url):
@@ -62,42 +104,50 @@ class YTelement(youtube_dl.YoutubeDL):
 class NNement(list):
 	def __init__(self, page=1):
 		self.url = 'http://naurunappula.com/videot'
-		result = mie.hae(self.url+'/?p='+str(page))
-#		result = requests.get(self.url)
+		result = mie.get(self.url+'/?p='+str(page))
 		tree = html.fromstring(result.content)
 		for element in tree.xpath('//table[@class="padd gridlist"]/tr/td/a'):
 			self.append(VideoElement(element))
 			
 class Kommentti:
 	def __init__(self, element):
-		self.user_thumbnail = element.xpath('td[@class="author_photo"]//img/@src')[0]
-		self.user = element.xpath('td[@class="author"]//b/text()')[0]
-		self.user_data = " ".join(element.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
+		self.user = Comment_user(element)
 		self.content = element.xpath('td[@class="content"]/div/text()')
 		self.quote = " ".join(element.xpath('td[@class="content"]//div[@class="quote_msg"]/text()')).strip()
 		self.quote_user = " ".join(element.xpath('td[@class="content"]//div[@class="quote_msg"]/a/text()')).strip()
 		self.text = self.quote_user + " " + self.quote + " ".join(self.content)
 		
 class Kommentti_sent:
-	def __init__(self, element):
-		self.comment_date = element.xpath('span/text()')
-		self.comment_id = re.search("\d+","".join(element.xpath('@id'))).group(0)
-		self.content = " ".join(element.xpath('text()')).strip()
+	def __init__(self, data, kommentti):
+		self.comment_media = "".join(data.xpath('a//text()')).strip()
+		self.comment_date = data.xpath('span/text()')
+		self.comment_id = re.search("\d+","".join(kommentti.xpath('@id'))).group(0)
+		self.content = " ".join(kommentti.xpath('text()')).strip()
 #		payload={
 #			'action':'get_message',
 #			'msg_id':self.comment_id
 #			}
 #		message = mie.post("https://naurunappula.com/comment.php", payload)
-#		message = mie.get("https://naurunappula.com/comment.php?action=get_message&msg_id:"+self.comment_id).text
 
-class User_comments:
+	def hae_tiedot(self):
+		payload={
+			'from_viewmode':'1',
+			'service_id':'1',
+			'target_id':self.comment_media,
+			'page_id':'-1',	#näytä kaikki
+			'action':'fetch'
+			}
+		result = mie.post("https://naurunappula.com/comment.php", payload)
+		tree = html.fromstring(result.text)
+		self.comment_rating = "".join(tree.xpath('//span[@id="crate_' + self.comment_id + '"]/text()')).strip()
+
+class User_comments(list):
 	def __init__(self):
 		result = mie.get("https://naurunappula.com" + mie.user_id + "?c=1000")
 		tree = html.fromstring(result.content)
 		elements = tree.xpath('//div[@class="sent_comments"]/div')
-		self.kommentit = list()
-		for kommentti in elements[1::2]:
-			self.kommentit.append(Kommentti_sent(kommentti))
+		for data, kommentti in zip(elements[0::2], elements[1::2]):
+			self.append(Kommentti_sent(data, kommentti))
 
 class VideoElement:
 	def __init__(self, gridlist):
