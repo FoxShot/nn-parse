@@ -8,7 +8,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from lxml import html
 from gi.repository import Gtk,Gdk
-from nn_parse import NNement,mie
+from nn_parse import NNement,mie, VideoPage
 from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
@@ -41,10 +41,6 @@ class VLCWindow(Gtk.Window):
 	def __init__(self, olio):
 		Gtk.Window.__init__(self, title="VLC")
 		
-		olio.hae_video()
-		olio.hae_kommentit()
-		olio.hae_kanavat()
-		olio.hae_tagit()
 		self.data = olio
 		self.connect("key_press_event", self.key_pressed)
 		self.draw_area = DecoratedVLCWidget()
@@ -106,7 +102,7 @@ class VLCWindow(Gtk.Window):
 		self.comments_list.remove(self.kommentit)
 
 	def do_rating(self, widget):
-		self.data.rate_video(widget.get_label())
+		self.data.rate(widget.get_label())
 		self.data.hae_rating()
 		self.rating.set_label(self.data.rating)
 		
@@ -155,12 +151,12 @@ class VLCWindow(Gtk.Window):
 	def change_video(self, direction):
 		url = "https://naurunappula.com/go.php"
 		payload = {
-			'link_id': self.data.link_id,
+			'link_id': self.data.id,
 			'c': '2',
 			'dir': direction
 		}
 		sessio = mie.get(url, params=payload)
-		self.data.hae_sessio(sessio)
+		self.data = VideoPage(sessio)
 		self.draw_area.player.stop()
 		self.draw_area.player.set_mrl(self.data.url)
 		self.draw_area.player.play()
@@ -219,7 +215,8 @@ class Nappi(Gtk.Button):
 		self.connect("clicked", self.on_button_clicked)
 
 	def on_button_clicked(self, widget):
-		window = VLCWindow(widget.Mnemonic)
+		session = mie.get(widget.Mnemonic.link)
+		window = VLCWindow(VideoPage(session))
 		window.show_all()
 
 class Ristikko(Gtk.Grid):

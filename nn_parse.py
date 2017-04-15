@@ -148,8 +148,82 @@ class User_comments(list):
 		elements = tree.xpath('//div[@class="sent_comments"]/div')
 		for data, kommentti in zip(elements[0::2], elements[1::2]):
 			self.append(Kommentti_sent(data, kommentti))
+			
+class Media:
+	def __init__(self, media_id):
+		self.id = media_id
+#		self.cathegory = cathegory
+		self.link = "https://naurunappula.com/" + self.id
+		
+	def hae_rating(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+		rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')[0].strip()
+		return rating
+		
+	def hae_kommentit(self):
+		payload={
+			'from_viewmode':'1',
+			'service_id':'1',
+			'target_id':self.id,
+			'page_id':'-1',	#näytä kaikki
+			'action':'fetch'
+			}
+		result = mie.post("https://naurunappula.com/comment.php", payload)
+		tree = html.fromstring(result.text)
+		comments = list()
+		for kommentti in tree.xpath('//div[@id="list_comments"]/table/tr')[::2]:
+			comments.append(Kommentti(kommentti))
+		return comments
+			
+	def hae_kanavat(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		channels = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/g/")]/text()')
+		return channels
 
-class VideoElement:
+	def hae_tagit(self):
+		result = mie.get(self.link)
+		tree = html.fromstring(result.content)
+		tags = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/s/")]/text()')
+		return tags
+		
+	def rate(self, rating):
+		payload={
+			'service_id':'1',
+			'target_id':self.id,
+			'points':rating
+			}
+		mie.post("https://naurunappula.com/rate.php", payload)
+		
+	def add_channel(self, kanava):
+		print(self.id)
+		print(kanava)
+		payload={
+			'id':self.id,
+			'group_id':kanava
+			}
+		mie.post("https://naurunappula.com/favadd.php", payload)
+		
+	def add_tag(self, tag):
+		payload={
+			'id':self.id,
+			'inlinetagsuggestion':1,
+			'suggest_tag':tag
+			}
+		mie.post("https://naurunappula.com/editor.php", payload)
+
+	def add_comment(self, comment):
+		payload={
+			'action':'send_comment',
+			'service_id':'1',
+			'target_id':self.id,
+			'comment':comment
+			}
+		mie.post("https://naurunappula.com/comment.php", payload)
+
+class VideoElement(Media):
 	def __init__(self, gridlist):
 		self.title = gridlist.xpath('@title')[0]
 		if self.title == "":
@@ -157,15 +231,25 @@ class VideoElement:
 		else:
 			self.name = gridlist.xpath('text()')[0]
 		self.link = "https://naurunappula.com" + gridlist.xpath('@href')[0]
-#		self.link_id = re.search('\d+', self.link).group(0)
+		media_id = re.search('\/(\d+)\/', self.link).group(1)
 		self.image = gridlist.xpath('img/@src')[0]
+		Media.__init__(self, media_id)
 	
-	def hae_video(self):
-		result = mie.get(self.link)
-		tree = html.fromstring(result.content)
-		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+class VideoPage(Media):
+	def __init__(self, session):
+		html_tree = html.fromstring(session.content)
+		media_id = html_tree.xpath('//input[@name="link_id"]/@value')[0]
+		Media.__init__(self, media_id)
+		
+		self.title = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]/h1/span[@id="linktitle"]/text()')
+		if len(self.title)!=0:
+			self.title = self.title[0]
+		else:
+			self.title = "<Ei nimikettä>"
+		self.link = session.url
 
-		self.link_id = tree.xpath('//input[@name="link_id"]/@value')[0]
+		linkdata = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+
 		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
 		if len(self.rating)!=0:
 			self.rating = self.rating[0].strip()
@@ -181,8 +265,11 @@ class VideoElement:
 			i=1 #jos anon niin yksi rivi puuttuu alusta
 		self.date = linkdata.xpath('div[@id="linktoolstable"]//div[@id="linkinfo"]/p/text()')[i].strip()
 		self.date = re.search('\d+[.]\d+[.]\d+', self.date).group(0) #haetaan vain päivänmäärä
+		self.tags = linkdata.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/s/")]/text()')
+		self.channels = linkdata.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/g/")]/text()')
+		self.comments = self.hae_kommentit()
 
-		embedded = tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]')[0]
+		embedded = html_tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]')[0]
 		youtube = embedded.xpath('iframe/@src')
 		flv = embedded.xpath('script/text()')
 
@@ -191,78 +278,18 @@ class VideoElement:
 		else:
 			ydl = YTelement(youtube[0])
 			self.url = ydl.video
-	
-	def hae_sessio(self, sessio):
-		tree = html.fromstring(sessio.content)
-		self.title = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]/h1/span[@id="linktitle"]/text()')
-		if len(self.title)!=0:
-			self.title = self.title[0]
-		else:
-			self.title = "<Ei nimikettä>"
-		self.link = sessio.url
-		self.hae_video()
-		self.hae_kommentit()
-		self.hae_kanavat()
-		self.hae_tagit()
-	
-	def hae_rating(self):
-		result = mie.hae(self.link)
-		tree = html.fromstring(result.content)
-		linkdata = tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
-		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')[0].strip()
-		
-	def hae_kommentit(self):
-		payload={
-			'from_viewmode':'1',
-			'service_id':'1',
-			'target_id':self.link_id,
-			'page_id':'-1',	#näytä kaikki
-			'action':'fetch'
-			}
-		result = mie.post("https://naurunappula.com/comment.php", payload)
-		tree = html.fromstring(result.text)
-		self.comments = list()
-		for kommentti in tree.xpath('//div[@id="list_comments"]/table/tr')[::2]:
-			self.comments.append(Kommentti(kommentti))
 			
+	def hae_rating(self):
+		print("rate")
+		self.rating = super().hae_rating()
+		return self.rating
+
+	def hae_kommentit(self):
+		print("kommentit")
+		self.kommentit = super().hae_kommentit()
+		return self.kommentit
+
 	def hae_kanavat(self):
-		result = mie.get(self.link)
-		tree = html.fromstring(result.content)
-		self.channels = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/g/")]/text()')
-
-	def hae_tagit(self):
-		result = mie.get(self.link)
-		tree = html.fromstring(result.content)
-		self.tags = tree.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/s/")]/text()')
-		
-	def rate_video(self, rating):
-		payload={
-			'service_id':'1',
-			'target_id':self.link_id,
-			'points':rating
-			}
-		mie.post("https://naurunappula.com/rate.php", payload)
-		
-	def add_channel(self, kanava):
-		payload={
-			'link_id':self.link_id,
-			'group_id':kanava
-			}
-		mie.post("https://naurunappula.com/favadd.php", payload)
-		
-	def add_tag(self, tag):
-		payload={
-			'link_id':self.link_id,
-			'inlinetagsuggestion':1,
-			'suggest_tag':tag
-			}
-		mie.post("https://naurunappula.com/editor.php", payload)
-
-	def add_comment(self, comment):
-		payload={
-			'action':'send_comment',
-			'service_id':'1',
-			'target_id':self.link_id,
-			'comment':comment
-			}
-		mie.post("https://naurunappula.com/comment.php", payload)
+		print("kanavat")
+		self.channels = super().hae_kanavat()
+		return self.channels
