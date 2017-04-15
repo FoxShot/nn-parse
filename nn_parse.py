@@ -198,17 +198,15 @@ class Media:
 		mie.post("https://naurunappula.com/rate.php", payload)
 		
 	def add_channel(self, kanava):
-		print(self.id)
-		print(kanava)
 		payload={
-			'id':self.id,
+			'link_id':self.id,
 			'group_id':kanava
 			}
 		mie.post("https://naurunappula.com/favadd.php", payload)
 		
 	def add_tag(self, tag):
 		payload={
-			'id':self.id,
+			'link_id':self.id,
 			'inlinetagsuggestion':1,
 			'suggest_tag':tag
 			}
@@ -280,16 +278,13 @@ class VideoPage(Media):
 			self.url = ydl.video
 			
 	def hae_rating(self):
-		print("rate")
 		self.rating = super().hae_rating()
 		return self.rating
 
 	def hae_kommentit(self):
-		print("kommentit")
 		self.kommentit = super().hae_kommentit()
 		return self.kommentit
 
 	def hae_kanavat(self):
-		print("kanavat")
 		self.channels = super().hae_kanavat()
 		return self.channels
