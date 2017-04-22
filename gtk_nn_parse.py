@@ -6,21 +6,18 @@ import math
 import re
 import gi
 gi.require_version('Gtk', '3.0')
-from lxml import html
 from gi.repository import Gtk,Gdk
-from nn_parse import NNement,mie, VideoPage
+from nn_parse import VideoGrid,mie,VideoPage,ImageGrid
 from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
-	def __init__(self, olio):
+	def __init__(self):
 		Gtk.ComboBoxText.__init__(self)
 		for nimi in mie.group_names:
 			self.append(None, nimi)
-		self.olio = olio
 		
 	def add_to(self):
-		gid = mie.group_ids[self.get_active()]
-		self.olio.add_channel(gid)
+		return mie.group_ids[self.get_active()]
 		
 class KommenttiLaatikko(Gtk.ListBoxRow):
 	def __init__(self, kommentti):
@@ -59,7 +56,7 @@ class VLCWindow(Gtk.Window):
 		self.rating = builder.get_object("rating")
 
 		channel_select = builder.get_object("channel_select")
-		self.valikko = Kanavavalikko(olio)
+		self.valikko = Kanavavalikko()
 		channel_select.add(self.valikko)
 
 		self.channels_list = builder.get_object("channels_list")
@@ -119,7 +116,8 @@ class VLCWindow(Gtk.Window):
 		self.show_all()		
 
 	def add_channel(self, widget):
-		self.valikko.add_to()
+		kanava_id = self.valikko.add_to()
+		self.data.add_channel(kanava_id)
 		self.data.hae_kanavat()
 		self.channels_list.remove(self.kanavat)
 		self.kanavat = Gtk.VBox()
@@ -222,7 +220,7 @@ class Nappi(Gtk.Button):
 class Ristikko(Gtk.Grid):
 	def __init__(self, page=1):
 		Gtk.Grid.__init__(self)
-		NN = NNement(page)
+		NN = VideoGrid(page)
 
 		i=0
 		for vid in NN:
