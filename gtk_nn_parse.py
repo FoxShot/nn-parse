@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 
-import os
-import requests
 import math
-import re
 import gi
 gi.require_version('Gtk', '3.0')
-from lxml import html
 from gi.repository import Gtk,Gdk
-from nn_parse import NNement,mie
+from nn_parse import VideoGrid,mie,VideoPage,ImageGrid
 from gtk_vlc_player import DecoratedVLCWidget
 
 class Kanavavalikko(Gtk.ComboBoxText):
-	def __init__(self, olio):
+	def __init__(self):
 		Gtk.ComboBoxText.__init__(self)
 		for nimi in mie.group_names:
 			self.append(None, nimi)
-		self.olio = olio
 		
 	def add_to(self):
-		gid = mie.group_ids[self.get_active()]
-		self.olio.add_channel(gid)
+		return mie.group_ids[self.get_active()]
 		
 class KommenttiLaatikko(Gtk.ListBoxRow):
 	def __init__(self, kommentti):
@@ -28,7 +22,7 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
 		user_thumbnail = builder.get_object("user_thumbnail")
-		user_thumbnail.set_from_file(Avatar(kommentti.user.avatar).get_file())
+		user_thumbnail.set_from_file(kommentti.user.avatar.get_file())
 		user_name = builder.get_object("user_name")
 		user_name.set_label("<"+kommentti.user.name+">")
 		user_data = builder.get_object("user_data")
@@ -41,10 +35,6 @@ class VLCWindow(Gtk.Window):
 	def __init__(self, olio):
 		Gtk.Window.__init__(self, title="VLC")
 		
-		olio.hae_video()
-		olio.hae_kommentit()
-		olio.hae_kanavat()
-		olio.hae_tagit()
 		self.data = olio
 		self.connect("key_press_event", self.key_pressed)
 		self.draw_area = DecoratedVLCWidget()
@@ -63,7 +53,7 @@ class VLCWindow(Gtk.Window):
 		self.rating = builder.get_object("rating")
 
 		channel_select = builder.get_object("channel_select")
-		self.valikko = Kanavavalikko(olio)
+		self.valikko = Kanavavalikko()
 		channel_select.add(self.valikko)
 
 		self.channels_list = builder.get_object("channels_list")
@@ -106,7 +96,7 @@ class VLCWindow(Gtk.Window):
 		self.comments_list.remove(self.kommentit)
 
 	def do_rating(self, widget):
-		self.data.rate_video(widget.get_label())
+		self.data.rate(widget.get_label())
 		self.data.hae_rating()
 		self.rating.set_label(self.data.rating)
 		
@@ -123,7 +113,8 @@ class VLCWindow(Gtk.Window):
 		self.show_all()		
 
 	def add_channel(self, widget):
-		self.valikko.add_to()
+		kanava_id = self.valikko.add_to()
+		self.data.add_channel(kanava_id)
 		self.data.hae_kanavat()
 		self.channels_list.remove(self.kanavat)
 		self.kanavat = Gtk.VBox()
@@ -153,14 +144,7 @@ class VLCWindow(Gtk.Window):
 		self.change_video("p")
 		
 	def change_video(self, direction):
-		url = "https://naurunappula.com/go.php"
-		payload = {
-			'link_id': self.data.link_id,
-			'c': '2',
-			'dir': direction
-		}
-		sessio = mie.get(url, params=payload)
-		self.data.hae_sessio(sessio)
+		self.data = VideoPage(self.data.change_media(direction))
 		self.draw_area.player.stop()
 		self.draw_area.player.set_mrl(self.data.url)
 		self.draw_area.player.play()
@@ -169,49 +153,13 @@ class VLCWindow(Gtk.Window):
 		self.queue_draw()
 		self.show_all()
 
-class Kuva(object):
-	folder = None
-
-	def __init__(self, url):
-		self.imgname = re.search('\d+[.]jpg', url)
-		self.url = url
-		
-	def get_file(self):
-		return self.folder + self.imgname
-		
-	def write_file(self):
-		if not os.path.isfile(self.folder+self.imgname):				
-			response=requests.get(self.url)
-			with open(self.folder+self.imgname, 'wb') as img:
-				for chunk in response:
-					img.write(chunk)
-		
-class Avatar(Kuva):
-	folder = "./avatars/"
-	
-	def __init__(self, url):
-		Kuva.__init__(self, url)
-		self.imgname = self.imgname.group(0)
-		self.write_file()
-
-class Thumbnail(Kuva):
-	folder = "./thumbnails/"
-	
-	def __init__(self, url):
-		Kuva.__init__(self, url)
-		if self.imgname == None:
-			self.imgname="video.gif"
-		else:
-			self.imgname=self.imgname.group(0)
-		self.write_file()
-
 class Nappi(Gtk.Button):
 	def __init__(self, olio):
 		Gtk.Button.__init__(self)
 		self.Mnemonic = olio
 		jako = Gtk.VBox()
 		kuva = Gtk.Image()
-		kuva.set_from_file(Thumbnail(olio.image).get_file())
+		kuva.set_from_file(olio.thumbnail.get_file())
 		jako.add(kuva)
 		label = Gtk.Label(olio.name)
 		jako.add(label)
@@ -219,13 +167,14 @@ class Nappi(Gtk.Button):
 		self.connect("clicked", self.on_button_clicked)
 
 	def on_button_clicked(self, widget):
-		window = VLCWindow(widget.Mnemonic)
+		session = mie.get(widget.Mnemonic.link)
+		window = VLCWindow(VideoPage(session))
 		window.show_all()
 
 class Ristikko(Gtk.Grid):
 	def __init__(self, page=1):
 		Gtk.Grid.__init__(self)
-		NN = NNement(page)
+		NN = VideoGrid(page)
 
 		i=0
 		for vid in NN:
