@@ -61,7 +61,10 @@ class Avatar(Kuva):
 	
 	def __init__(self, url):
 		Kuva.__init__(self, url)
-		self.imgname = self.imgname.group(0)
+		if self.imgname == None:
+			self.imgname="no-photo-mini.gif"
+		else:
+			self.imgname=self.imgname.group(0)
 		self.write_file()
 
 class Thumbnail(Kuva):
