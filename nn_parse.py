@@ -101,13 +101,26 @@ class YTelement(youtube_dl.YoutubeDL):
 			)
 		self.video = result['url']
 
-class NNement(list):
+class Grid(list):
+	media_url = None
+	
 	def __init__(self, page=1):
-		self.url = 'http://naurunappula.com/videot'
-		result = mie.get(self.url+'/?p='+str(page))
+		result = mie.get(self.media_url+'/?p='+str(page))
 		tree = html.fromstring(result.content)
 		for element in tree.xpath('//table[@class="padd gridlist"]/tr/td/a'):
 			self.append(VideoElement(element))
+
+class VideoGrid(Grid):
+	media_url = 'https://naurunappula.com/videot'
+	
+	def __init__(self, page=1):
+		Grid.__init__(self, page)
+		
+class ImageGrid(Grid):
+	media_url = 'https://naurunappula.com/kuvat'
+	
+	def __init__(self, page=1):
+		Grid.__init__(self, page)
 			
 class Kommentti:
 	def __init__(self, element):
@@ -239,14 +252,14 @@ class VideoPage(Media):
 		media_id = html_tree.xpath('//input[@name="link_id"]/@value')[0]
 		Media.__init__(self, media_id)
 		
-		self.title = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]/h1/span[@id="linktitle"]/text()')
+		linkdata = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
+
+		self.title = linkdata.xpath('h1/span[@id="linktitle"]/text()')
 		if len(self.title)!=0:
 			self.title = self.title[0]
 		else:
 			self.title = "<Ei nimikettä>"
 		self.link = session.url
-
-		linkdata = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
 
 		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
 		if len(self.rating)!=0:
