@@ -3,7 +3,7 @@
 from lxml import html
 import requests
 import re
-from os.path import expanduser,isfile
+from os.path import expanduser
 home = expanduser("~")	#multi os support
 import configparser
 import youtube_dl
@@ -38,42 +38,6 @@ class login(requests.Session):
 			self.group_names.append(kanava.xpath('a/text()')[0])
 			
 mie = login()
-
-class Kuva(object):
-	folder = None
-
-	def __init__(self, url):
-		self.imgname = re.search('\d+[.]jpg', url)
-		self.url = url
-		
-	def get_file(self):
-		return self.folder + self.imgname
-		
-	def write_file(self):
-		if not isfile(self.folder+self.imgname):				
-			response=requests.get(self.url)
-			with open(self.folder+self.imgname, 'wb') as img:
-				for chunk in response:
-					img.write(chunk)
-		
-class Avatar(Kuva):
-	folder = "./avatars/"
-	
-	def __init__(self, url):
-		Kuva.__init__(self, url)
-		self.imgname = self.imgname.group(0)
-		self.write_file()
-
-class Thumbnail(Kuva):
-	folder = "./thumbnails/"
-	
-	def __init__(self, url):
-		Kuva.__init__(self, url)
-		if self.imgname == None:
-			self.imgname="video.gif"
-		else:
-			self.imgname=self.imgname.group(0)
-		self.write_file()
 
 class User:
 	def __init__(self, user_id):
@@ -120,7 +84,7 @@ class Comment_user(User):
 		user_id = comment_box.xpath('td[@class="author"]/div[@class="username"]/a/@href')[0]
 		User.__init__(self, user_id)
 		avatar_url = comment_box.xpath('td[@class="author_photo"]//img/@src')[0]
-		self.avatar = Avatar(avatar_url)
+		self.avatar = avatar_url
 		self.name = comment_box.xpath('td[@class="author"]//b/text()')[0]
 		self.comment_data = " ".join(comment_box.xpath('td[@class="author"]/div[@class="usergroup"]//text()')).strip()
 		
@@ -291,7 +255,7 @@ class VideoElement(Media):
 		self.link = "https://naurunappula.com" + gridlist.xpath('@href')[0]
 		media_id = re.search('\/(\d+)\/', self.link).group(1)
 		thumbnail_url = gridlist.xpath('img/@src')[0]
-		self.thumbnail = Thumbnail(thumbnail_url)
+		self.thumbnail = thumbnail_url
 		Media.__init__(self, media_id)
 	
 class VideoPage(Media):

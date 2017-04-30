@@ -1,11 +1,85 @@
 #!/usr/bin/env python3
 
 import math
+import threading
+import requests
+import re
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk,Gdk
+from gi.repository import Gtk,Gdk,GdkPixbuf,GObject
+from os.path import isfile, getsize
 from nn_parse import VideoGrid,mie,VideoPage,ImageGrid
 from gtk_vlc_player import DecoratedVLCWidget
+
+class Kuva(threading.Thread, Gtk.Box):
+	__gsignals__ = {
+			'downloaded':(GObject.SIGNAL_RUN_FIRST, None, ())
+		}
+	
+	folder = None
+	size = None
+
+	def __init__(self, url):
+		threading.Thread.__init__(self)
+		Gtk.Box.__init__(self)
+		self.set_size_request(self.size,self.size)
+		self.spinner = Gtk.Spinner()
+		self.spinner.start()
+		self.pack_start(self.spinner, True, True, 0)
+		self.url = url
+		self.imgname = re.search('\d+[.]jpg', url)
+		
+	def run(self):
+		self.local_file = open(self.folder+self.imgname, 'wb')
+		response=requests.get(self.url, stream=True)
+		for chunk in response.iter_content(100000):
+			self.local_file.write(chunk)
+		self.emit('downloaded')
+
+	def get_file(self):
+		return self.folder + self.imgname
+		
+	def write_file(self):
+		if not isfile(self.folder+self.imgname):		
+			self.start()
+		elif not getsize(self.folder+self.imgname):
+			self.start()
+		else:
+			self.emit('downloaded')
+			
+	def do_downloaded(self):
+		image = Gtk.Image()
+		imgbuffer = GdkPixbuf.Pixbuf.new_from_file(self.get_file())
+		imgbuffer = imgbuffer.scale_simple(self.size,self.size,GdkPixbuf.InterpType.BILINEAR)
+		image.set_from_pixbuf(imgbuffer)
+		self.remove(self.spinner)
+		self.pack_start(image, True, True, 0)
+		self.queue_draw()
+		self.show_all()
+		
+class Avatar(Kuva):
+	folder = "./avatars/"
+	size = 50
+	
+	def __init__(self, url):
+		Kuva.__init__(self, url)
+		if self.imgname == None:
+			self.imgname="no-photo-mini.gif"
+		else:
+			self.imgname=self.imgname.group(0)
+		self.write_file()
+
+class Thumbnail(Kuva):
+	folder = "./thumbnails/"
+	size = 100
+	
+	def __init__(self, url):
+		Kuva.__init__(self, url)
+		if self.imgname == None:
+			self.imgname="video.gif"
+		else:
+			self.imgname=self.imgname.group(0)
+		self.write_file()
 
 class Kanavavalikko(Gtk.ComboBoxText):
 	def __init__(self):
@@ -22,7 +96,7 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
 		user_thumbnail = builder.get_object("user_thumbnail")
-		user_thumbnail.set_from_file(kommentti.user.avatar.get_file())
+		user_thumbnail.set_from_file(Avatar(kommentti.user.avatar).get_file())
 		user_name = builder.get_object("user_name")
 		user_name.set_label("<"+kommentti.user.name+">")
 		user_data = builder.get_object("user_data")
@@ -156,21 +230,21 @@ class VLCWindow(Gtk.Window):
 class Nappi(Gtk.Button):
 	def __init__(self, olio):
 		Gtk.Button.__init__(self)
+		threading.Thread.__init__(self)
 		self.Mnemonic = olio
 		jako = Gtk.VBox()
-		kuva = Gtk.Image()
-		kuva.set_from_file(olio.thumbnail.get_file())
-		jako.add(kuva)
+		jako.add(Thumbnail(olio.thumbnail))
 		label = Gtk.Label(olio.name)
 		jako.add(label)
 		self.add(jako)
 		self.connect("clicked", self.on_button_clicked)
-
+		self.set_size_request(210,150)
+		
 	def on_button_clicked(self, widget):
 		session = mie.get(widget.Mnemonic.link)
 		window = VLCWindow(VideoPage(session))
 		window.show_all()
-
+		
 class Ristikko(Gtk.Grid):
 	def __init__(self, page=1):
 		Gtk.Grid.__init__(self)
