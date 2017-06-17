@@ -122,6 +122,13 @@ class ImageGrid(Grid):
 	
 	def __init__(self, page=1):
 		Grid.__init__(self, page)
+		
+class GroupGrid(list):
+	def __init__(self, media_url ,page=1):
+		result = mie.get(media_url+'/?page_id='+str(page))
+		tree = html.fromstring(result.content)
+		for element in tree.xpath('//table[@class="padd gridlist groupmedias"]/tr/td/a'):
+			self.append(VideoElement(element))		
 			
 class Kommentti:
 	def __init__(self, element):
@@ -164,9 +171,10 @@ class User_comments(list):
 			self.append(Kommentti_sent(data, kommentti))
 			
 class Media:
+	cathegory=None
+	
 	def __init__(self, media_id):
 		self.id = media_id
-#		self.cathegory = cathegory
 		self.link = "https://naurunappula.com/" + self.id
 		
 	def hae_rating(self):
@@ -237,10 +245,11 @@ class Media:
 
 	def change_media(self, direction):
 		url = "https://naurunappula.com/go.php"
+		print(self.cathegory)
 		payload = {
-			'link_id': self.id,
-			'c': '2',
-			'dir': direction
+			'link_id':self.id,
+			'c':self.cathegory,
+			'dir':direction
 		}
 		return mie.get(url, params=payload)
 
@@ -257,13 +266,16 @@ class VideoElement(Media):
 		thumbnail_url = gridlist.xpath('img/@src')[0]
 		self.thumbnail = thumbnail_url
 		Media.__init__(self, media_id)
+		
+class MediaPage(Media):
+	embedded_pattern = None
 	
-class VideoPage(Media):
-	def __init__(self, session):
+	def __init__(self,session):
 		html_tree = html.fromstring(session.content)
 		media_id = html_tree.xpath('//input[@name="link_id"]/@value')[0]
+
 		Media.__init__(self, media_id)
-		
+
 		linkdata = html_tree.xpath('//div[@id="view_container"]/div[@id="linkdatacontainer"]/div[@id="linkdata"]')[0]
 
 		self.title = linkdata.xpath('h1/span[@id="linktitle"]/text()')
@@ -273,7 +285,7 @@ class VideoPage(Media):
 			self.title = "<Ei nimikettä>"
 		self.link = session.url
 
-		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()')
+		self.rating = linkdata.xpath('h1/span[@id="ratevalue"]/text()') #hae_rating
 		if len(self.rating)!=0:
 			self.rating = self.rating[0].strip()
 		else:
@@ -291,17 +303,28 @@ class VideoPage(Media):
 		self.tags = linkdata.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/s/")]/text()')
 		self.channels = linkdata.xpath('//div[@id="linkinfo"]/p/a[starts-with(@href, "/g/")]/text()')
 		self.comments = self.hae_kommentit()
-
-		embedded = html_tree.xpath('//div[@id="viewbody_container"]/div[@id="viewbody"]/div[@id="viewembedded"]')[0]
+		
+		print(self.embedded_pattern)
+		embedded = html_tree.xpath(self.embedded_pattern)[0]
+		img = embedded.xpath('script/text()')
+		webm = embedded.xpath('video/source/@src')
 		youtube = embedded.xpath('iframe/@src')
 		flv = embedded.xpath('script/text()')
 
-		if len(flv) != 0:
+		if len(img) != 0:
+			self.url = "https://babylon.naurunappula.com" + re.search('\/screen\/.+[.jpg|.png]', img[0]).group(0)
+			print("img")	
+		elif len(webm) != 0:
+			self.url = webm[0]
+			print("webm")
+		elif len(flv) != 0:
 			self.url = re.search('https:.+[.]flv', flv[0]).group(0) #HUOM! jos logattuna niin https, muuten http
+			print("flv")
 		else:
 			ydl = YTelement(youtube[0])
 			self.url = ydl.video
-			
+			print("ydl")
+						
 	def hae_rating(self):
 		self.rating = super().hae_rating()
 		return self.rating
@@ -312,4 +335,18 @@ class VideoPage(Media):
 
 	def hae_kanavat(self):
 		self.channels = super().hae_kanavat()
-		return self.channels
+		return self.channels	
+	
+class VideoPage(MediaPage):
+	cathegory = '2'
+	embedded_pattern = '//div[@id="viewbody_container"]/div[@id="viewbody"]/div/div[@id="viewembedded"]'
+
+	def __init__(self, session):
+		MediaPage.__init__(self, session)
+		
+class ImagePage(MediaPage):
+	cathegory = '1'
+	embedded_pattern = '//div[@id="viewbody_container"]/div[@id="viewbody"]/div/div[@id="viewembedded"]'
+	
+	def __init__(self, session):
+		MediaPage.__init__(self, session)

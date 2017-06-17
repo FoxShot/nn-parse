@@ -8,7 +8,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk,Gdk,GdkPixbuf,GObject
 from os.path import isfile, getsize
-from nn_parse import VideoGrid,mie,VideoPage,ImageGrid
+from nn_parse import VideoGrid,mie,VideoPage,ImageGrid,ImagePage
 from gtk_vlc_player import DecoratedVLCWidget
 
 class Kuva(threading.Thread, Gtk.Box):
@@ -16,10 +16,9 @@ class Kuva(threading.Thread, Gtk.Box):
 			'downloaded':(GObject.SIGNAL_RUN_FIRST, None, ())
 		}
 	
-	folder = None
-	size = None
-
-	def __init__(self, url):
+	def __init__(self, url, folder, size):
+		self.folder = folder
+		self.size = size
 		threading.Thread.__init__(self)
 		Gtk.Box.__init__(self)
 		self.set_size_request(self.size,self.size)
@@ -27,13 +26,18 @@ class Kuva(threading.Thread, Gtk.Box):
 		self.spinner.start()
 		self.pack_start(self.spinner, True, True, 0)
 		self.url = url
-		self.imgname = re.search('\d+[.]jpg', url)
+		self.imgname = re.search('\d+[.jpg|.png]+', url)
 		
 	def run(self):
-		self.local_file = open(self.folder+self.imgname, 'wb')
+		local_file = open(self.folder+self.imgname, 'wb')
 		response=requests.get(self.url, stream=True)
-		for chunk in response.iter_content(100000):
-			self.local_file.write(chunk)
+		for chunk in response.iter_content(chunk_size=1024):
+			if chunk:
+				local_file.write(chunk)
+				local_file.flush()
+#		while not getsize(self.folder+self.imgname):
+#			print("not ready")
+#		self.write_file()
 		self.emit('downloaded')
 
 	def get_file(self):
@@ -62,7 +66,7 @@ class Avatar(Kuva):
 	size = 50
 	
 	def __init__(self, url):
-		Kuva.__init__(self, url)
+		Kuva.__init__(self, url, self.folder, self.size)
 		if self.imgname == None:
 			self.imgname="no-photo-mini.gif"
 		else:
@@ -74,11 +78,20 @@ class Thumbnail(Kuva):
 	size = 100
 	
 	def __init__(self, url):
-		Kuva.__init__(self, url)
+		Kuva.__init__(self, url, self.folder, self.size)
 		if self.imgname == None:
 			self.imgname="video.gif"
 		else:
 			self.imgname=self.imgname.group(0)
+		self.write_file()
+		
+class Picture(Kuva):
+	folder = "./pictures/"
+	size = 640
+	
+	def __init__(self, url):
+		Kuva.__init__(self, url, self.folder, self.size)
+		self.imgname = self.imgname.group(0)
 		self.write_file()
 
 class Kanavavalikko(Gtk.ComboBoxText):
@@ -96,7 +109,8 @@ class KommenttiLaatikko(Gtk.ListBoxRow):
 		builder = Gtk.Builder()
 		builder.add_from_file("KommenttiLaatikko.glade")
 		user_thumbnail = builder.get_object("user_thumbnail")
-		user_thumbnail.set_from_file(Avatar(kommentti.user.avatar).get_file())
+		temp_avatar = Avatar(kommentti.user.avatar)
+		user_thumbnail.add(temp_avatar)
 		user_name = builder.get_object("user_name")
 		user_name.set_label("<"+kommentti.user.name+">")
 		user_data = builder.get_object("user_data")
@@ -111,9 +125,11 @@ class VLCWindow(Gtk.Window):
 		
 		self.data = olio
 		self.connect("key_press_event", self.key_pressed)
-		self.draw_area = DecoratedVLCWidget()
-		self.draw_area.set_media(olio.url)
-		self.draw_area.player.play()
+		self.draw_area = Picture(olio.url)
+#		self.draw_area.set_from_file(Picture(olio.url))
+#		self.draw_area = DecoratedVLCWidget()
+#		self.draw_area.set_media(olio.url)
+#		self.draw_area.player.play()
 
 		builder = Gtk.Builder()
 		builder.add_from_file("VideoIkkuna.glade")
@@ -135,8 +151,8 @@ class VLCWindow(Gtk.Window):
 		self.tags_list = builder.get_object("tags_list")
 		self.tag_input = builder.get_object("tag_input")
 
-		video_area = builder.get_object("video_area")
-		video_area.pack_start(self.draw_area, True, True, 0)
+		self.video_area = builder.get_object("video_area")
+		self.video_area.pack_start(self.draw_area, True, True, 0)
 		
 #		comments_window = builder.get_object("comments_window")
 #		comments_window.set_max_content_height(200) #vaatii GTK version 3.22
@@ -218,10 +234,13 @@ class VLCWindow(Gtk.Window):
 		self.change_video("p")
 		
 	def change_video(self, direction):
-		self.data = VideoPage(self.data.change_media(direction))
-		self.draw_area.player.stop()
-		self.draw_area.player.set_mrl(self.data.url)
-		self.draw_area.player.play()
+		self.video_area.remove(self.draw_area)
+		self.data = ImagePage(self.data.change_media(direction))
+		self.draw_area = Picture(self.data.url)
+		self.video_area.pack_start(self.draw_area, True, True, 0)
+#		self.draw_area.player.stop()
+#		self.draw_area.player.set_mrl(self.data.url)
+#		self.draw_area.player.play()
 		self.empty_lists()
 		self.fill_lists()
 		self.queue_draw()
@@ -242,13 +261,13 @@ class Nappi(Gtk.Button):
 		
 	def on_button_clicked(self, widget):
 		session = mie.get(widget.Mnemonic.link)
-		window = VLCWindow(VideoPage(session))
+		window = VLCWindow(ImagePage(session))
 		window.show_all()
 		
 class Ristikko(Gtk.Grid):
 	def __init__(self, page=1):
 		Gtk.Grid.__init__(self)
-		NN = VideoGrid(page)
+		NN = ImageGrid(page)
 
 		i=0
 		for vid in NN:
