@@ -11,7 +11,29 @@ from os.path import isfile, getsize
 from nn_parse import VideoGrid,mie,VideoPage,ImageGrid,ImagePage
 from gtk_vlc_player import DecoratedVLCWidget
 
-class Kuva(threading.Thread, Gtk.Box):
+class Downloader(threading.Thread):
+	def __init__(self,  url):
+		threading.Thread.__init__(self)
+		self.imgname = re.search('\d+[.jpg|.png]+', url)
+	
+	def run(self):
+		local_file = open(self.folder+self.imgname, 'wb')
+		response=requests.get(self.url, stream=True)
+		for chunk in response.iter_content(chunk_size=1024):
+			if chunk:
+				local_file.write(chunk)
+				local_file.flush()
+	
+	def get_file(self):
+		return self.folder + self.imgname
+
+	def write_file(self):
+		if not isfile(self.folder+self.imgname):		
+			self.start()
+		elif not getsize(self.folder+self.imgname):
+			self.start()
+
+class Kuva(Gtk.Box):
 	__gsignals__ = {
 			'downloaded':(GObject.SIGNAL_RUN_FIRST, None, ())
 		}
@@ -20,7 +42,6 @@ class Kuva(threading.Thread, Gtk.Box):
 	size =  None
 	
 	def __init__(self, url):
-		threading.Thread.__init__(self)
 		Gtk.Box.__init__(self)
 		self.set_size_request(self.size,self.size)
 		self.spinner = Gtk.Spinner()
@@ -29,7 +50,7 @@ class Kuva(threading.Thread, Gtk.Box):
 		self.url = url
 		self.imgname = re.search('\d+[.jpg|.png]+', url)
 		
-	def run(self):
+	def download(self):
 		local_file = open(self.folder+self.imgname, 'wb')
 		response=requests.get(self.url, stream=True)
 		for chunk in response.iter_content(chunk_size=1024):
@@ -46,9 +67,9 @@ class Kuva(threading.Thread, Gtk.Box):
 		
 	def write_file(self):
 		if not isfile(self.folder+self.imgname):		
-			self.start()
+			self.download()
 		elif not getsize(self.folder+self.imgname):
-			self.start()
+			self.download()
 		else:
 			self.emit('downloaded')
 			
@@ -272,11 +293,9 @@ class Ristikko(Gtk.Grid):
 		Gtk.Grid.__init__(self)
 		NN = VideoGrid(page)
 
-		i=0
-		for vid in NN:
+		for index,  vid in enumerate(NN):
 			laatikko = Nappi(vid)
-			self.attach(laatikko,(i%5)+1,math.floor(i/5)+1,1,1)
-			i+=1
+			self.attach(laatikko,(index%5)+1,math.floor(index/5)+1,1,1)
 
 class MyWindow(Gtk.Window):
 	def __init__(self):
